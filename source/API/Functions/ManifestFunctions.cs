@@ -13,11 +13,13 @@ public sealed class ManifestFunctions(
     IManifestIndexStore store,
     IPackageBlobStore packageBlobStore,
     SolutionPackageManifestBuilder manifestBuilder,
+    PowerPackApiAuthorizationService authorizationService,
     ILogger<ManifestFunctions> logger)
 {
     private readonly IManifestIndexStore _store = store;
     private readonly IPackageBlobStore _packageBlobStore = packageBlobStore;
     private readonly SolutionPackageManifestBuilder _manifestBuilder = manifestBuilder;
+    private readonly PowerPackApiAuthorizationService _authorizationService = authorizationService;
     private readonly ILogger<ManifestFunctions> _logger = logger;
 
     [Function("ListManifests")]
@@ -28,6 +30,7 @@ public sealed class ManifestFunctions(
     {
         try
         {
+            await _authorizationService.AuthorizeAsync(request, cancellationToken);
             var manifests = await _store.ListManifestsAsync(name, cancellationToken);
             return new OkObjectResult(
                 manifests.Select(manifest => new ManifestSummary
@@ -43,6 +46,10 @@ public sealed class ManifestFunctions(
         {
             return BadRequest(exception.Message);
         }
+        catch (PowerPackUnauthorizedException exception)
+        {
+            return Unauthorized(exception.Message);
+        }
     }
 
     [Function("GetManifest")]
@@ -54,6 +61,7 @@ public sealed class ManifestFunctions(
     {
         try
         {
+            await _authorizationService.AuthorizeAsync(request, cancellationToken);
             var manifest = await _store.GetManifestAsync(name, SolutionVersion.Parse(version), cancellationToken);
             return manifest is null
                 ? new NotFoundObjectResult(new { message = $"Manifest '{name}' version '{version}' was not found." })
@@ -62,6 +70,10 @@ public sealed class ManifestFunctions(
         catch (PowerPackValidationException exception)
         {
             return BadRequest(exception.Message);
+        }
+        catch (PowerPackUnauthorizedException exception)
+        {
+            return Unauthorized(exception.Message);
         }
     }
 
@@ -92,6 +104,7 @@ public sealed class ManifestFunctions(
     {
         try
         {
+            await _authorizationService.AuthorizeAsync(request, cancellationToken);
             var parsedVersion = SolutionVersion.Parse(version);
             var packageMetadata = await _store.GetPackageMetadataAsync(name, parsedVersion, cancellationToken);
             if (packageMetadata is not null)
@@ -104,6 +117,10 @@ public sealed class ManifestFunctions(
         {
             return BadRequest(exception.Message);
         }
+        catch (PowerPackUnauthorizedException exception)
+        {
+            return Unauthorized(exception.Message);
+        }
     }
 
     private async Task<IActionResult> PublishPackageInternal(
@@ -114,6 +131,7 @@ public sealed class ManifestFunctions(
     {
         try
         {
+            await _authorizationService.AuthorizeAsync(request, cancellationToken);
             EnsureZipContentType(request.ContentType);
 
             var quality = PackageQuality.Parse(request.Query["quality"]);
@@ -168,6 +186,10 @@ public sealed class ManifestFunctions(
         {
             return BadRequest(exception.Message);
         }
+        catch (PowerPackUnauthorizedException exception)
+        {
+            return Unauthorized(exception.Message);
+        }
     }
 
     private static void EnsureZipContentType(string? contentType)
@@ -203,4 +225,6 @@ public sealed class ManifestFunctions(
     }
 
     private static BadRequestObjectResult BadRequest(string message) => new(new { message });
+
+    private static UnauthorizedObjectResult Unauthorized(string message) => new(new { message });
 }

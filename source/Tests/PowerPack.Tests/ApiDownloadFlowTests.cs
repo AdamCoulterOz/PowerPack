@@ -1,8 +1,14 @@
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text.Json;
 using Azure.Core;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.IdentityModel.Protocols;
+using Microsoft.IdentityModel.Protocols.OpenIdConnect;
+using Microsoft.IdentityModel.Tokens;
 using PowerPack.Functions;
 using PowerPack.Models;
 using PowerPack.Options;
@@ -23,6 +29,7 @@ public sealed class ApiDownloadFlowTests
             "https://powerpack.test/api/resolve",
             new SolutionReference { Name = "WorkspaceForms" }
         );
+        request.Headers.Authorization = $"Bearer {environment.ApiAccessToken}";
 
         var actionResult = await environment.ResolverFunctions.ResolveSolution(request, default);
 
@@ -88,6 +95,7 @@ public sealed class ApiDownloadFlowTests
         var store = new InMemoryManifestIndexStore();
         var packageBlobStore = new InMemoryPackageBlobStore();
         var manifestBuilder = CreateManifestBuilder();
+        var authorizationService = CreateAuthorizationService(out var apiAccessToken);
         var packageBytes = new Dictionary<string, byte[]>(StringComparer.Ordinal);
 
         foreach (var fixture in FixtureCatalog.All)
@@ -120,9 +128,15 @@ public sealed class ApiDownloadFlowTests
 
         return new TestEnvironment
         {
-            ResolverFunctions = new ResolverFunctions(new DependencyResolver(store), store, tokenService),
+            ResolverFunctions = new ResolverFunctions(
+                new DependencyResolver(store),
+                store,
+                authorizationService,
+                tokenService
+            ),
             PackageFunctions = new PackageFunctions(store, packageBlobStore, tokenService),
             TokenService = tokenService,
+            ApiAccessToken = apiAccessToken,
             PackageBytes = packageBytes,
         };
     }
@@ -166,6 +180,40 @@ public sealed class ApiDownloadFlowTests
         return buffer.ToArray();
     }
 
+    private static PowerPackApiAuthorizationService CreateAuthorizationService(out string apiAccessToken)
+    {
+        using var rsa = RSA.Create(2048);
+        var signingKey = new RsaSecurityKey(rsa.ExportParameters(true));
+        var configuration = new OpenIdConnectConfiguration
+        {
+            Issuer = "https://login.microsoftonline.com/test-tenant/v2.0",
+        };
+        configuration.SigningKeys.Add(new RsaSecurityKey(rsa.ExportParameters(false)));
+
+        apiAccessToken = new JwtSecurityTokenHandler().WriteToken(new JwtSecurityToken(
+            issuer: configuration.Issuer,
+            audience: "api://powerpack.test",
+            claims:
+            [
+                new Claim("roles", "PowerPack.Access"),
+            ],
+            notBefore: DateTime.UtcNow.AddMinutes(-1),
+            expires: DateTime.UtcNow.AddMinutes(30),
+            signingCredentials: new SigningCredentials(signingKey, SecurityAlgorithms.RsaSha256)
+        ));
+
+        return new PowerPackApiAuthorizationService(
+            new AuthOptions
+            {
+                ApplicationClientId = "powerpack-client-id",
+                ApplicationIdUri = "api://powerpack.test",
+                TenantId = "test-tenant",
+                RequiredRole = "PowerPack.Access",
+            },
+            new StaticConfigurationManager(configuration)
+        );
+    }
+
     private sealed class TestEnvironment
     {
         public required ResolverFunctions ResolverFunctions { get; init; }
@@ -174,7 +222,19 @@ public sealed class ApiDownloadFlowTests
 
         public required PackageDownloadTokenService TokenService { get; init; }
 
+        public required string ApiAccessToken { get; init; }
+
         public required IReadOnlyDictionary<string, byte[]> PackageBytes { get; init; }
+    }
+
+    private sealed class StaticConfigurationManager(OpenIdConnectConfiguration configuration)
+        : IConfigurationManager<OpenIdConnectConfiguration>
+    {
+        public Task<OpenIdConnectConfiguration> GetConfigurationAsync(CancellationToken cancel) => Task.FromResult(configuration);
+
+        public void RequestRefresh()
+        {
+        }
     }
 
     private sealed class InMemoryPackageBlobStore : IPackageBlobStore

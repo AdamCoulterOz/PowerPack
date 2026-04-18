@@ -24,6 +24,7 @@ builder.Services
     .ValidateDataAnnotations()
     .ValidateOnStart();
 
+builder.Services.AddSingleton(serviceProvider => serviceProvider.GetRequiredService<IOptions<PowerPackOptions>>().Value);
 builder.Services.AddSingleton<IManifestIndexStore>(serviceProvider =>
 {
     var options = serviceProvider.GetRequiredService<IOptions<PowerPackOptions>>().Value;
@@ -31,6 +32,7 @@ builder.Services.AddSingleton<IManifestIndexStore>(serviceProvider =>
 });
 builder.Services.AddSingleton<TokenCredential>(_ => new DefaultAzureCredential());
 builder.Services.AddSingleton<IPackageBlobStore, PackageBlobStore>();
+builder.Services.AddSingleton<PowerPackApiAuthorizationService>();
 builder.Services.AddSingleton<PackageDownloadTokenService>();
 builder.Services.AddSingleton<SolutionPackageManifestBuilder>();
 builder.Services.AddHttpClient<PowerPlatformConnectorMetadataClient>();

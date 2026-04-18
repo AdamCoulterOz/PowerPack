@@ -152,6 +152,12 @@ The Function App exposes:
 
 Requests and responses are modeled and validated in C#.
 
+API authorization is split deliberately:
+
+- management and resolver endpoints require an Entra bearer token with the configured PowerPack app role
+- `GET /api/packages/{name}/{version}/download` stays anonymous at the platform edge and is protected by the signed PowerPack download token instead
+- request authorization is enforced in the API code rather than Function App Easy Auth because the Flex Consumption `excludedPaths` model does not cleanly support this dynamic download route
+
 Manifest publish now uploads the managed solution zip directly to PowerPack.
 
 - the API validates and inspects the uploaded zip in memory
@@ -246,16 +252,25 @@ GitHub Packages publish is handled by the release workflow.
 - `AzureWebJobsStorage` is configured with:
   - `AzureWebJobsStorage__accountName`
   - `AzureWebJobsStorage__credential=managedidentity`
+  - `AzureWebJobsStorage=""`
 - PowerPack table access is configured with:
   - `PowerPack__Storage__AccountUrl`
 - PowerPack blob access is configured with:
   - `PowerPack__Storage__BlobAccountUrl`
   - `PowerPack__Storage__PackageContainerName`
 - PowerPack download token signing is configured with:
-  - `PowerPack__Downloads__TokenSigningKey`
+  - `PowerPack__Downloads__TokenSigningKey` as a Key Vault reference
+- API bearer-token validation is configured with:
+  - `PowerPack__Auth__ApplicationClientId`
+  - `PowerPack__Auth__ApplicationIdUri`
+  - `PowerPack__Auth__TenantId`
+  - `PowerPack__Auth__RequiredRole`
+- Application Insights ingestion is configured with:
+  - `APPLICATIONINSIGHTS_AUTHENTICATION_STRING=Authorization=AAD`
 - the Function App identity is granted:
   - `Storage Blob Data Owner`
   - `Storage Table Data Contributor`
+  - `Monitoring Metrics Publisher`
 
 ## Deployment Graph
 
@@ -265,8 +280,9 @@ GitHub Packages publish is handled by the release workflow.
   - Flex plan
   - Function App
   - role assignments
+  - Key Vault and secret reference wiring
 - the Function App owns table creation and schema usage:
   - `solutionindex`
   - `dependencyindex`
-- released Terraform module artifacts deploy Function App code through `onedeploy` using their baked `released-package.zip` asset URL
+- released Terraform module artifacts deploy Function App code through an AzAPI-managed `Microsoft.Resources/deployments` wrapper that applies `Microsoft.Web/sites/extensions/onedeploy` using their baked `released-package.zip` asset URL
 - there is no shell polling or `local-exec` in the Terraform path

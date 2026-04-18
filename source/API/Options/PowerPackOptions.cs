@@ -15,6 +15,9 @@ public sealed class PowerPackOptions
 
     [Required]
     public DownloadOptions Downloads { get; init; } = new();
+
+    [Required]
+    public AuthOptions Auth { get; init; } = new();
 }
 
 public sealed class StorageOptions
@@ -77,4 +80,21 @@ public sealed class DownloadOptions
 
     [Range(1, 1440)]
     public int TokenLifetimeMinutes { get; init; } = 30;
+}
+
+public sealed class AuthOptions
+{
+    [Required]
+    public string ApplicationClientId { get; init; } = string.Empty;
+
+    [Required]
+    public string ApplicationIdUri { get; init; } = string.Empty;
+
+    [Required]
+    public string TenantId { get; init; } = string.Empty;
+
+    [Required]
+    public string RequiredRole { get; init; } = "PowerPack.Access";
+
+    public string Authority => $"https://login.microsoftonline.com/{TenantId}/v2.0";
 }

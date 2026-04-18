@@ -11,12 +11,14 @@ namespace PowerPack.Functions;
 public sealed class ResolverFunctions(
     DependencyResolver resolver,
     IManifestIndexStore store,
+    PowerPackApiAuthorizationService authorizationService,
     PackageDownloadTokenService tokenService)
 {
     private static readonly JsonSerializerOptions JsonSerializerOptions = new(JsonSerializerDefaults.Web);
 
     private readonly DependencyResolver _resolver = resolver;
     private readonly IManifestIndexStore _store = store;
+    private readonly PowerPackApiAuthorizationService _authorizationService = authorizationService;
     private readonly PackageDownloadTokenService _tokenService = tokenService;
 
     [Function("ResolveSolution")]
@@ -26,6 +28,7 @@ public sealed class ResolverFunctions(
     {
         try
         {
+            await _authorizationService.AuthorizeAsync(request, cancellationToken);
             var solution = await request.ReadFromJsonAsync<SolutionReference>(JsonSerializerOptions, cancellationToken);
             if (solution is null)
             {
@@ -43,6 +46,10 @@ public sealed class ResolverFunctions(
         {
             return BadRequest(exception.Message);
         }
+        catch (PowerPackUnauthorizedException exception)
+        {
+            return Unauthorized(exception.Message);
+        }
     }
 
     [Function("ResolveSet")]
@@ -52,6 +59,7 @@ public sealed class ResolverFunctions(
     {
         try
         {
+            await _authorizationService.AuthorizeAsync(request, cancellationToken);
             var payload = await request.ReadFromJsonAsync<ResolveSetRequest>(JsonSerializerOptions, cancellationToken);
             if (payload is null)
             {
@@ -69,6 +77,10 @@ public sealed class ResolverFunctions(
         {
             return BadRequest(exception.Message);
         }
+        catch (PowerPackUnauthorizedException exception)
+        {
+            return Unauthorized(exception.Message);
+        }
     }
 
     [Function("ValidateDependencies")]
@@ -78,6 +90,7 @@ public sealed class ResolverFunctions(
     {
         try
         {
+            await _authorizationService.AuthorizeAsync(request, cancellationToken);
             var payload = await request.ReadFromJsonAsync<ValidateRequest>(JsonSerializerOptions, cancellationToken);
             if (payload is null)
             {
@@ -95,6 +108,10 @@ public sealed class ResolverFunctions(
         {
             return BadRequest(exception.Message);
         }
+        catch (PowerPackUnauthorizedException exception)
+        {
+            return Unauthorized(exception.Message);
+        }
     }
 
     [Function("GetDependents")]
@@ -105,15 +122,22 @@ public sealed class ResolverFunctions(
     {
         try
         {
+            await _authorizationService.AuthorizeAsync(request, cancellationToken);
             return new OkObjectResult(await _resolver.GetDependentsAsync(name, cancellationToken));
         }
         catch (PowerPackValidationException exception)
         {
             return BadRequest(exception.Message);
         }
+        catch (PowerPackUnauthorizedException exception)
+        {
+            return Unauthorized(exception.Message);
+        }
     }
 
     private static BadRequestObjectResult BadRequest(string message) => new(new { message });
+
+    private static UnauthorizedObjectResult Unauthorized(string message) => new(new { message });
 
     private async Task<ResolutionResult> AttachPackageUrlsAsync(
         ResolutionResult result,

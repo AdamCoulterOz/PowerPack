@@ -25,6 +25,7 @@ It owns:
 - Release packaging now produces two paired artifacts: `released-package.zip` for the API and `module-<version>.zip` for the Terraform module with a baked reference to that API asset URL.
 - `test/` now owns reusable test fixtures, including the release-consumer Terraform fixture and .NET-generated Power Platform solution package fixtures.
 - Tests now cover resolver-generated tokenized download URLs and the anonymous package download flow.
+- API authorization now runs in the Function code so protected endpoints require Entra app-role tokens while package download remains publicly reachable with a signed query token.
 - GitHub Actions now owns CI and tagged release packaging.
 - Contract definitions live in C# models and validators; there is no parallel JSON schema source of truth.
 - Documentation examples use a shared neutral solution set:
@@ -70,6 +71,11 @@ It owns:
 - The Terraform code in `infra/` is consumed as a module by caller-owned root configurations.
 - The released Terraform module artifact, not the source tree, is the self-contained unit that carries the paired API package URI.
 - Contract and validation rules should not be duplicated in hand-maintained JSON schema files.
+- Flex Consumption deployment stays on `azurerm`; only the `onedeploy` extension is applied through an `azapi_resource` ARM deployment wrapper.
+- Function host storage uses managed identity with `AzureWebJobsStorage__accountName`, `AzureWebJobsStorage__credential=managedidentity`, and an explicit blank `AzureWebJobsStorage`.
+- PowerPack download token signing uses a Key Vault secret reference rather than a plain app setting.
+- Application Insights ingestion uses Entra authentication with `APPLICATIONINSIGHTS_AUTHENTICATION_STRING=Authorization=AAD`.
+- Function App Easy Auth is intentionally not used because its path-exclusion model does not fit the dynamic anonymous package download route.
 
 ## Invariants
 
@@ -90,8 +96,10 @@ It owns:
 - Review whether the built-in solution registry should remain checked in here or move to a separate source of truth.
 - Add an example root configuration that consumes the Terraform module from GitHub.
 - Decide whether GitHub Releases should remain the long-term host for the baked API package URI or whether Azure Blob Storage should own release distribution.
+- Clean up older scratch resource groups created while iterating on Flex Consumption OneDeploy behavior.
 
 ## Technical Debt
 
 - The Terraform module still creates its own Entra application and service principal, which is convenient but may be too opinionated for some tenants.
 - The release workflow currently publishes the CLI to GitHub Packages; consumers outside GitHub Packages may still want an alternate feed strategy.
+- The Key Vault currently uses access policies for the Function identity; revisit whether RBAC-only Key Vault access is viable for this deployment shape.

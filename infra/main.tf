@@ -6,6 +6,7 @@ locals {
   resource_group_name          = coalesce(var.resource_group_name, "rg-${local.resource_name_prefix}")
   service_plan_name            = local.resource_name_prefix
   application_insights_name    = local.resource_name_prefix
+  key_vault_name               = substr("kv-${local.storage_account_name_prefix}-${substr(random_string.storage_account_suffix.result, 0, 8)}", 0, 24)
   function_app_name            = "${local.resource_name_prefix}-${random_string.function_app_suffix.result}"
   powerpack_api_display_name   = title(replace(local.resource_name_prefix, "-", " "))
   powerpack_api_app_role_name  = "PowerPack.Access"
@@ -109,10 +110,41 @@ resource "azurerm_service_plan" "this" {
 }
 
 resource "azurerm_application_insights" "this" {
-  name                = local.application_insights_name
-  location            = azurerm_resource_group.this.location
-  resource_group_name = azurerm_resource_group.this.name
-  application_type    = "web"
+  name                          = local.application_insights_name
+  location                      = azurerm_resource_group.this.location
+  resource_group_name           = azurerm_resource_group.this.name
+  application_type              = "web"
+  local_authentication_disabled = true
+}
+
+resource "azurerm_key_vault" "this" {
+  name                       = local.key_vault_name
+  location                   = azurerm_resource_group.this.location
+  resource_group_name        = azurerm_resource_group.this.name
+  tenant_id                  = data.azurerm_client_config.current.tenant_id
+  sku_name                   = "standard"
+  soft_delete_retention_days = 7
+  purge_protection_enabled   = false
+
+  access_policy {
+    tenant_id = data.azurerm_client_config.current.tenant_id
+    object_id = data.azurerm_client_config.current.object_id
+
+    secret_permissions = [
+      "Delete",
+      "Get",
+      "List",
+      "Purge",
+      "Recover",
+      "Set",
+    ]
+  }
+}
+
+resource "azurerm_key_vault_secret" "download_token_signing_key" {
+  name         = "download-token-signing-key"
+  key_vault_id = azurerm_key_vault.this.id
+  value        = random_password.download_token_signing_key.result
 }
 
 resource "azurerm_function_app_flex_consumption" "this" {
@@ -140,90 +172,78 @@ resource "azurerm_function_app_flex_consumption" "this" {
     application_insights_connection_string = azurerm_application_insights.this.connection_string
   }
 
-  auth_settings_v2 {
-    auth_enabled           = true
-    default_provider       = "azureactivedirectory"
-    excluded_paths         = ["/api/packages/*/download"]
-    require_authentication = true
-    require_https          = true
-    runtime_version        = "~1"
-    unauthenticated_action = "Return401"
-
-    login {
-      token_store_enabled = false
-    }
-
-    active_directory_v2 {
-      client_id            = azuread_application.api.client_id
-      tenant_auth_endpoint = "https://login.microsoftonline.com/${data.azurerm_client_config.current.tenant_id}/v2.0"
-      allowed_audiences = [
-        local.powerpack_api_identifier_uri,
-        azuread_application.api.client_id,
-      ]
-    }
-  }
-
   app_settings = {
-    "AzureWebJobsStorage__accountName"         = azurerm_storage_account.this.name
-    "AzureWebJobsStorage__credential"          = "managedidentity"
-    "PowerPack__Storage__AccountUrl"           = azurerm_storage_account.this.primary_table_endpoint
-    "PowerPack__Storage__BlobAccountUrl"       = azurerm_storage_account.this.primary_blob_endpoint
-    "PowerPack__Storage__PackageContainerName" = azurerm_storage_container.solution_packages.name
-    "PowerPack__Downloads__TokenSigningKey"    = random_password.download_token_signing_key.result
-    "PowerPack__Auth__ApplicationClientId"     = azuread_application.api.client_id
-    "PowerPack__Auth__ApplicationIdUri"        = local.powerpack_api_identifier_uri
+    "APPLICATIONINSIGHTS_AUTHENTICATION_STRING" = "Authorization=AAD"
+    "AzureWebJobsStorage__accountName"          = azurerm_storage_account.this.name
+    "AzureWebJobsStorage__credential"           = "managedidentity"
+    "AzureWebJobsStorage"                       = ""
+    "PowerPack__Storage__AccountUrl"            = azurerm_storage_account.this.primary_table_endpoint
+    "PowerPack__Storage__BlobAccountUrl"        = azurerm_storage_account.this.primary_blob_endpoint
+    "PowerPack__Storage__PackageContainerName"  = azurerm_storage_container.solution_packages.name
+    "PowerPack__Downloads__TokenSigningKey"     = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.download_token_signing_key.versionless_id})"
+    "PowerPack__Auth__ApplicationClientId"      = azuread_application.api.client_id
+    "PowerPack__Auth__ApplicationIdUri"         = local.powerpack_api_identifier_uri
+    "PowerPack__Auth__TenantId"                 = data.azurerm_client_config.current.tenant_id
+    "PowerPack__Auth__RequiredRole"             = local.powerpack_api_app_role_name
   }
 }
 
-resource "azurerm_resource_group_template_deployment" "function_app_onedeploy" {
-  name                = "powerpack-api-onedeploy"
-  resource_group_name = azurerm_resource_group.this.name
-  deployment_mode     = "Incremental"
+resource "azapi_resource" "function_app_onedeploy" {
+  type                      = "Microsoft.Resources/deployments@2021-04-01"
+  name                      = "function-app-onedeploy"
+  parent_id                 = azurerm_resource_group.this.id
+  schema_validation_enabled = false
 
-  template_content = jsonencode({
-    "$schema"      = "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#"
-    contentVersion = "1.0.0.0"
-    parameters = {
-      functionAppName = {
-        type = "String"
+  body = {
+    properties = {
+      mode = "Incremental"
+      template = {
+        "$schema"      = "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#"
+        contentVersion = "1.0.0.0"
+        parameters = {
+          functionAppName = {
+            type = "string"
+          }
+          location = {
+            type = "string"
+          }
+          packageUri = {
+            type = "string"
+          }
+        }
+        resources = [
+          {
+            type       = "Microsoft.Web/sites/extensions"
+            apiVersion = "2022-09-01"
+            name       = "[format('{0}/{1}', parameters('functionAppName'), 'onedeploy')]"
+            location   = "[parameters('location')]"
+            properties = {
+              packageUri  = "[parameters('packageUri')]"
+              remoteBuild = false
+            }
+          }
+        ]
       }
-      location = {
-        type = "String"
-      }
-      packageUri = {
-        type = "String"
-      }
-    }
-    resources = [
-      {
-        name       = "[concat(parameters('functionAppName'), '/onedeploy')]"
-        type       = "Microsoft.Web/sites/extensions"
-        apiVersion = "2022-09-01"
-        location   = "[parameters('location')]"
-        properties = {
-          packageUri  = "[parameters('packageUri')]"
-          remoteBuild = false
+      parameters = {
+        functionAppName = {
+          value = azurerm_function_app_flex_consumption.this.name
+        }
+        location = {
+          value = azurerm_resource_group.this.location
+        }
+        packageUri = {
+          value = local.resolved_api_package_uri
         }
       }
-    ]
-  })
-
-  parameters_content = jsonencode({
-    functionAppName = {
-      value = azurerm_function_app_flex_consumption.this.name
     }
-    location = {
-      value = azurerm_resource_group.this.location
-    }
-    packageUri = {
-      value = local.resolved_api_package_uri
-    }
-  })
+  }
 
   depends_on = [
     azurerm_function_app_flex_consumption.this,
     azurerm_role_assignment.function_host_blob_owner,
     azurerm_role_assignment.function_host_table_contributor,
+    azurerm_role_assignment.function_host_monitoring_metrics_publisher,
+    azurerm_key_vault_access_policy.function_host,
   ]
 
   lifecycle {
@@ -246,4 +266,22 @@ resource "azurerm_role_assignment" "function_host_table_contributor" {
   role_definition_name = "Storage Table Data Contributor"
   principal_id         = azurerm_function_app_flex_consumption.this.identity[0].principal_id
   principal_type       = "ServicePrincipal"
+}
+
+resource "azurerm_role_assignment" "function_host_monitoring_metrics_publisher" {
+  scope                = azurerm_application_insights.this.id
+  role_definition_name = "Monitoring Metrics Publisher"
+  principal_id         = azurerm_function_app_flex_consumption.this.identity[0].principal_id
+  principal_type       = "ServicePrincipal"
+}
+
+resource "azurerm_key_vault_access_policy" "function_host" {
+  key_vault_id = azurerm_key_vault.this.id
+  tenant_id    = azurerm_function_app_flex_consumption.this.identity[0].tenant_id
+  object_id    = azurerm_function_app_flex_consumption.this.identity[0].principal_id
+
+  secret_permissions = [
+    "Get",
+    "List",
+  ]
 }
