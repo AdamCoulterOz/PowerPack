@@ -27,35 +27,42 @@ public sealed class SolutionPackageManifestBuilder(PowerPlatformConnectorMetadat
 
         using var archive = new ZipArchive(new MemoryStream(packageBytes, writable: false), ZipArchiveMode.Read, leaveOpen: false);
 
-        var solutionXmlEntry = archive.GetEntry("solution.xml")
-            ?? throw new PowerPackValidationException("Managed solution package zip is missing solution.xml.");
+        var solutionXmlEntry = GetRequiredEntry(
+            archive,
+            ["solution.xml"],
+            "Managed solution package zip is missing solution.xml."
+        );
         var solutionXml = await ReadEntryAsStringAsync(solutionXmlEntry, cancellationToken);
+        var solutionXmlPath = solutionXmlEntry.FullName;
 
-        var customizationsXmlEntry = archive.GetEntry("Other/Customizations.xml")
-            ?? throw new PowerPackValidationException(
-                "Managed solution package zip is missing Other/Customizations.xml."
-            );
+        var customizationsXmlEntry = GetRequiredEntry(
+            archive,
+            ["Other/Customizations.xml", "customizations.xml"],
+            "Managed solution package zip is missing Other/Customizations.xml or customizations.xml."
+        );
         var customizationsXml = await ReadEntryAsStringAsync(customizationsXmlEntry, cancellationToken);
+        var customizationsXmlPath = customizationsXmlEntry.FullName;
 
-        var solutionDocument = ParseXml(solutionXml, "solution.xml");
-        var customizationsDocument = ParseXml(customizationsXml, "Other/Customizations.xml");
+        var solutionDocument = ParseXml(solutionXml, solutionXmlPath);
+        var customizationsDocument = ParseXml(customizationsXml, customizationsXmlPath);
 
         var manifestRoot = solutionDocument.Descendants().FirstOrDefault(node => LocalName(node) == "SolutionManifest")
-            ?? throw new PowerPackValidationException("solution.xml is missing SolutionManifest.");
+            ?? throw new PowerPackValidationException($"{solutionXmlPath} is missing SolutionManifest.");
 
-        var uniqueName = ChildValue(manifestRoot, "UniqueName", "solution.xml SolutionManifest.UniqueName");
-        var version = SolutionVersion.Parse(ChildValue(manifestRoot, "Version", "solution.xml SolutionManifest.Version"));
+        var uniqueName = ChildValue(manifestRoot, "UniqueName", $"{solutionXmlPath} SolutionManifest.UniqueName");
+        var version = SolutionVersion.Parse(ChildValue(manifestRoot, "Version", $"{solutionXmlPath} SolutionManifest.Version"));
         var publisherNode = manifestRoot.Elements().FirstOrDefault(node => LocalName(node) == "Publisher")
-            ?? throw new PowerPackValidationException("solution.xml is missing SolutionManifest.Publisher.");
-        var publisher = ChildValue(publisherNode, "UniqueName", "solution.xml SolutionManifest.Publisher.UniqueName");
+            ?? throw new PowerPackValidationException($"{solutionXmlPath} is missing SolutionManifest.Publisher.");
+        var publisher = ChildValue(publisherNode, "UniqueName", $"{solutionXmlPath} SolutionManifest.Publisher.UniqueName");
 
         var dependencies = ExtractDependencies(solutionDocument, uniqueName);
         var connections = await ExtractConnectionsAsync(
             customizationsDocument,
+            customizationsXmlPath,
             powerPlatformEnvironmentId,
             cancellationToken
         );
-        var variables = ExtractVariables(customizationsDocument);
+        var variables = ExtractVariables(customizationsDocument, customizationsXmlPath);
 
         return ManifestNormalizer.Normalize(new SolutionManifest
         {
@@ -76,6 +83,7 @@ public sealed class SolutionPackageManifestBuilder(PowerPlatformConnectorMetadat
 
     private async Task<JsonObject> ExtractConnectionsAsync(
         XDocument customizationsDocument,
+        string customizationsXmlPath,
         string? powerPlatformEnvironmentId,
         CancellationToken cancellationToken
     )
@@ -121,11 +129,11 @@ public sealed class SolutionPackageManifestBuilder(PowerPlatformConnectorMetadat
         {
             var (humanDescription, sections) = SplitDescriptionSections(
                 definition.Description,
-                $"Other/Customizations.xml.[connectionreference:{definition.LogicalName}].description"
+                $"{customizationsXmlPath}.[connectionreference:{definition.LogicalName}].description"
             );
             var requirements = ParseRequirementsBlock(
                 sections["requirements"],
-                $"Other/Customizations.xml.[connectionreference:{definition.LogicalName}].description.[requirements]"
+                $"{customizationsXmlPath}.[connectionreference:{definition.LogicalName}].description.[requirements]"
             );
 
             var connectionObject = new JsonObject
@@ -138,7 +146,7 @@ public sealed class SolutionPackageManifestBuilder(PowerPlatformConnectorMetadat
                     requirements.Permissions
                         .Select(permission => ExpandPermission(
                             permission,
-                            $"Other/Customizations.xml.[connectionreference:{definition.LogicalName}].description.[requirements].permissions"
+                            $"{customizationsXmlPath}.[connectionreference:{definition.LogicalName}].description.[requirements].permissions"
                         ))
                         .ToArray()
                 ),
@@ -148,7 +156,7 @@ public sealed class SolutionPackageManifestBuilder(PowerPlatformConnectorMetadat
             {
                 var connectionDefinition = ParseConnectionBlock(
                     connectionSectionText,
-                    $"Other/Customizations.xml.[connectionreference:{definition.LogicalName}].description.[connection]"
+                    $"{customizationsXmlPath}.[connectionreference:{definition.LogicalName}].description.[connection]"
                 );
 
                 if (string.IsNullOrWhiteSpace(powerPlatformEnvironmentId))
@@ -176,7 +184,7 @@ public sealed class SolutionPackageManifestBuilder(PowerPlatformConnectorMetadat
                 connectionObject["connection_parameters_set"] = BuildConnectionParametersSet(
                     connectionDefinition,
                     connectorMetadata,
-                    $"Other/Customizations.xml.[connectionreference:{definition.LogicalName}].description.[connection]"
+                    $"{customizationsXmlPath}.[connectionreference:{definition.LogicalName}].description.[connection]"
                 );
             }
 
@@ -186,7 +194,7 @@ public sealed class SolutionPackageManifestBuilder(PowerPlatformConnectorMetadat
         return connections;
     }
 
-    private static JsonObject ExtractVariables(XDocument customizationsDocument)
+    private static JsonObject ExtractVariables(XDocument customizationsDocument, string customizationsXmlPath)
     {
         var variables = new JsonObject();
         var variableDefinitions = customizationsDocument
@@ -228,7 +236,7 @@ public sealed class SolutionPackageManifestBuilder(PowerPlatformConnectorMetadat
             var variableType = InferVariableType(
                 definition.TypeCode,
                 definition.ValueSchema,
-                $"Other/Customizations.xml.[environmentvariable:{definition.SchemaName}]"
+                $"{customizationsXmlPath}.[environmentvariable:{definition.SchemaName}]"
             );
 
             var variableObject = new JsonObject
@@ -240,7 +248,7 @@ public sealed class SolutionPackageManifestBuilder(PowerPlatformConnectorMetadat
                     CoerceDefaultValue(
                         definition.DefaultValue,
                         variableType,
-                        $"Other/Customizations.xml.[environmentvariable:{definition.SchemaName}]"
+                        $"{customizationsXmlPath}.[environmentvariable:{definition.SchemaName}]"
                     )
                 );
 
@@ -287,6 +295,26 @@ public sealed class SolutionPackageManifestBuilder(PowerPlatformConnectorMetadat
         return dependencies
             .OrderBy(item => item.Key, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(item => item.Key, item => item.Value, StringComparer.Ordinal);
+    }
+
+    private static ZipArchiveEntry GetRequiredEntry(
+        ZipArchive archive,
+        IReadOnlyList<string> candidatePaths,
+        string missingMessage)
+    {
+        foreach (var candidatePath in candidatePaths)
+        {
+            var exactMatch = archive.GetEntry(candidatePath);
+            if (exactMatch is not null)
+                return exactMatch;
+
+            var caseInsensitiveMatch = archive.Entries.FirstOrDefault(entry =>
+                string.Equals(entry.FullName, candidatePath, StringComparison.OrdinalIgnoreCase));
+            if (caseInsensitiveMatch is not null)
+                return caseInsensitiveMatch;
+        }
+
+        throw new PowerPackValidationException(missingMessage);
     }
 
     private static (string HumanDescription, Dictionary<string, string> Sections) SplitDescriptionSections(

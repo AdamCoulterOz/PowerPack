@@ -57,6 +57,27 @@ public sealed class SolutionPackageFixtureTests
     }
 
     [Fact]
+    public async Task ManifestBuilder_ParsesLegacyFlatManagedSolutionPackage()
+    {
+        var fixture = FixtureCatalog.All.Single(item => item.Name == "ExperienceHub");
+        var builder = CreateManifestBuilder();
+
+        var manifest = await builder.BuildAsync(
+            SolutionPackageFixtureWriter.CreateZipBytes(fixture, useLegacyFlatLayout: true),
+            null,
+            default
+        );
+
+        Assert.Equal("ExperienceHub", manifest.Name);
+        Assert.Equal("2.0.0.0", manifest.Version);
+
+        var connection = Assert.IsType<JsonObject>(manifest.Connections["pp_experience_approvals"]);
+        Assert.Equal("/providers/Microsoft.PowerApps/apis/shared_approvals", connection["type"]?.GetValue<string>());
+        Assert.Equal("user", connection["auth"]?.GetValue<string>());
+        Assert.Equal("Approval workflow connection for experience orchestration.", connection["description"]?.GetValue<string>());
+    }
+
+    [Fact]
     public async Task DependencyResolver_ResolvesGeneratedFixturePackages()
     {
         var builder = CreateManifestBuilder();

@@ -6,13 +6,17 @@ namespace PowerPack.TestFixtures;
 
 public static class SolutionPackageFixtureWriter
 {
-    public static byte[] CreateZipBytes(SolutionPackageFixture fixture)
+    public static byte[] CreateZipBytes(SolutionPackageFixture fixture, bool useLegacyFlatLayout = false)
     {
         using var buffer = new MemoryStream();
         using (var archive = new ZipArchive(buffer, ZipArchiveMode.Create, leaveOpen: true))
         {
             WriteTextEntry(archive, "solution.xml", BuildSolutionXml(fixture));
-            WriteTextEntry(archive, "Other/Customizations.xml", BuildCustomizationsXml(fixture));
+            WriteTextEntry(
+                archive,
+                useLegacyFlatLayout ? "customizations.xml" : "Other/Customizations.xml",
+                BuildCustomizationsXml(fixture)
+            );
         }
 
         return buffer.ToArray();
