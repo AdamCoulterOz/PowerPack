@@ -24,6 +24,12 @@ It owns:
 - `infra/` is now a generic Terraform module rather than an environment-specific Terraform root.
 - GitHub Actions now owns CI and tagged release packaging.
 - Contract definitions live in C# models and validators; there is no parallel JSON schema source of truth.
+- Documentation examples use a shared neutral solution set:
+  - `WorkspaceForms`
+  - `ExperienceHub`
+  - `SharedFoundation`
+  - `TableToolkit`
+  - `FieldOperations`
 
 ## Architecture
 
@@ -52,9 +58,9 @@ It owns:
 - No silent fallbacks.
 - PowerPack is both the dependency index and the package registry.
 - Blob access is never exposed directly to consumers; downloads go through signed PowerPack API URLs.
-- Manifest generation logic lives in shared C# code, not duplicated across Python and C#.
+- Manifest generation logic lives in shared C# code that is consumed by both the API and CLI.
 - The CLI and API may authenticate differently, but they must use the same domain logic.
-- The repo is GitHub-native and should not retain Azure DevOps-specific delivery plumbing.
+- Delivery automation is GitHub-native through GitHub Actions workflows in `.github/workflows/`.
 - The Terraform code in `infra/` is consumed as a module by caller-owned root configurations.
 - Contract and validation rules should not be duplicated in hand-maintained JSON schema files.
 

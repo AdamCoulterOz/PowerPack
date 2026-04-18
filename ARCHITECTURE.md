@@ -33,12 +33,12 @@ Each indexed solution version is represented by a manifest with this shape:
 
 ```json
 {
-  "name": "MetaForm",
+  "name": "WorkspaceForms",
   "version": "1.44.0.0",
     "publisher": "ExamplePublisher",
   "dependencies": {
-    "Core": "1.3.0.0",
-    "EditableTable": "1.1.0.0"
+    "SharedFoundation": "1.3.0.0",
+    "TableToolkit": "1.1.0.0"
   },
   "connections": {},
   "variables": {},
@@ -209,7 +209,7 @@ Request:
 
 ```json
 {
-  "name": "MetaForm",
+  "name": "WorkspaceForms",
   "version": "1.44"
 }
 ```
@@ -223,8 +223,8 @@ Request:
 ```json
 {
   "dependencies": {
-    "Core": "1.3.0.0",
-    "EditableTable": "1.1.0.0"
+    "SharedFoundation": "1.3.0.0",
+    "TableToolkit": "1.1.0.0"
   }
 }
 ```
@@ -238,8 +238,8 @@ Request:
 ```json
 {
   "solutions": [
-    { "name": "MetaForm", "version": "1.44" },
-    { "name": "Portal", "version": "2.0" }
+    { "name": "WorkspaceForms", "version": "1.44" },
+    { "name": "ExperienceHub", "version": "2.0" }
   ]
 }
 ```

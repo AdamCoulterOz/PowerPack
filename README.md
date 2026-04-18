@@ -14,6 +14,14 @@ It strips the dependency model back to the only stable primitives that matter:
 
 Packages, storage, and download transport are treated as install-time plumbing. They are not the dependency model.
 
+Documentation examples use these neutral sample solution names consistently:
+
+- `WorkspaceForms`
+- `ExperienceHub`
+- `SharedFoundation`
+- `TableToolkit`
+- `FieldOperations`
+
 ## Architecture
 
 PowerPack is split into three layers:

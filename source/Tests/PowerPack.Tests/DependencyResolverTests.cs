@@ -19,32 +19,32 @@ public sealed class DependencyResolverTests
     public async Task ResolveSet_Picks_HighestAvailableVersion_ThatSatisfiesMinimums()
     {
         var store = new InMemoryManifestIndexStore();
-        await store.UpsertManifestAsync(CreateManifest("Core", "1.0.0.0"), null, default);
-        await store.UpsertManifestAsync(CreateManifest("Core", "1.2.0.0"), null, default);
+        await store.UpsertManifestAsync(CreateManifest("SharedFoundation", "1.0.0.0"), null, default);
+        await store.UpsertManifestAsync(CreateManifest("SharedFoundation", "1.2.0.0"), null, default);
         await store.UpsertManifestAsync(CreateManifest(
-            "MetaForm",
+            "WorkspaceForms",
             "2.0.0.0",
-            new Dictionary<string, string> { ["Core"] = "1.1.0.0" }), null, default);
+            new Dictionary<string, string> { ["SharedFoundation"] = "1.1.0.0" }), null, default);
 
         var resolver = new DependencyResolver(store);
-        var result = await resolver.ResolveAsync(new SolutionReference { Name = "MetaForm" }, default);
+        var result = await resolver.ResolveAsync(new SolutionReference { Name = "WorkspaceForms" }, default);
 
         Assert.Equal("resolved", result.Status);
         Assert.Collection(
             result.Resolved,
             core =>
             {
-                Assert.Equal("Core", core.Name);
+                Assert.Equal("SharedFoundation", core.Name);
                 Assert.Equal("1.2.0.0", core.Version);
-                Assert.Equal("Core", core.Manifest.Name);
+                Assert.Equal("SharedFoundation", core.Manifest.Name);
                 Assert.Equal("1.2.0.0", core.Manifest.Version);
             },
-            metaForm =>
+            workspaceForms =>
             {
-                Assert.Equal("MetaForm", metaForm.Name);
-                Assert.Equal("2.0.0.0", metaForm.Version);
-                Assert.Equal("MetaForm", metaForm.Manifest.Name);
-                Assert.Equal("2.0.0.0", metaForm.Manifest.Version);
+                Assert.Equal("WorkspaceForms", workspaceForms.Name);
+                Assert.Equal("2.0.0.0", workspaceForms.Version);
+                Assert.Equal("WorkspaceForms", workspaceForms.Manifest.Name);
+                Assert.Equal("2.0.0.0", workspaceForms.Manifest.Version);
             }
         );
     }
@@ -53,16 +53,16 @@ public sealed class DependencyResolverTests
     public async Task ResolveSet_Merges_MinimumVersions_AcrossInputs()
     {
         var store = new InMemoryManifestIndexStore();
-        await store.UpsertManifestAsync(CreateManifest("Core", "1.0.0.0"), null, default);
-        await store.UpsertManifestAsync(CreateManifest("Core", "1.5.0.0"), null, default);
+        await store.UpsertManifestAsync(CreateManifest("SharedFoundation", "1.0.0.0"), null, default);
+        await store.UpsertManifestAsync(CreateManifest("SharedFoundation", "1.5.0.0"), null, default);
         await store.UpsertManifestAsync(CreateManifest(
-            "Portal",
+            "ExperienceHub",
             "3.0.0.0",
-            new Dictionary<string, string> { ["Core"] = "1.2.0.0" }), null, default);
+            new Dictionary<string, string> { ["SharedFoundation"] = "1.2.0.0" }), null, default);
         await store.UpsertManifestAsync(CreateManifest(
-            "WorkOrders",
+            "FieldOperations",
             "4.0.0.0",
-            new Dictionary<string, string> { ["Core"] = "1.4.0.0" }), null, default);
+            new Dictionary<string, string> { ["SharedFoundation"] = "1.4.0.0" }), null, default);
 
         var resolver = new DependencyResolver(store);
         var result = await resolver.ResolveSetAsync(
@@ -70,28 +70,28 @@ public sealed class DependencyResolverTests
             {
                 Solutions =
                 [
-                    new SolutionReference { Name = "Portal" },
-                    new SolutionReference { Name = "WorkOrders" }
+                    new SolutionReference { Name = "ExperienceHub" },
+                    new SolutionReference { Name = "FieldOperations" }
                 ]
             },
             default
         );
 
-        Assert.Equal("1.4.0.0", result.Constraints["Core"]);
-        Assert.Equal("1.5.0.0", result.Resolved.Single(solution => solution.Name == "Core").Version);
+        Assert.Equal("1.4.0.0", result.Constraints["SharedFoundation"]);
+        Assert.Equal("1.5.0.0", result.Resolved.Single(solution => solution.Name == "SharedFoundation").Version);
     }
 
     [Fact]
     public async Task Store_And_Resolver_Are_CaseInvariant_But_Preserve_ExactCase()
     {
         var store = new InMemoryManifestIndexStore();
-        await store.UpsertManifestAsync(CreateManifest("smartGridPCF", "1.0.44.0"), null, default);
+        await store.UpsertManifestAsync(CreateManifest("CaseAwareGrid", "1.0.44.0"), null, default);
 
         var resolver = new DependencyResolver(store);
-        var result = await resolver.ResolveAsync(new SolutionReference { Name = "smartgridpcf" }, default);
+        var result = await resolver.ResolveAsync(new SolutionReference { Name = "caseawaregrid" }, default);
 
         var resolved = Assert.Single(result.Resolved);
-        Assert.Equal("smartGridPCF", resolved.Name);
+        Assert.Equal("CaseAwareGrid", resolved.Name);
     }
 
     [Fact]
@@ -99,21 +99,21 @@ public sealed class DependencyResolverTests
     {
         var store = new InMemoryManifestIndexStore();
         await store.UpsertManifestAsync(CreateManifest(
-            "MetaForm",
+            "WorkspaceForms",
             "2.0.0.0",
-            new Dictionary<string, string> { ["Core"] = "1.1.0.0" }), null, default);
+            new Dictionary<string, string> { ["SharedFoundation"] = "1.1.0.0" }), null, default);
         await store.UpsertManifestAsync(CreateManifest(
-            "Portal",
+            "ExperienceHub",
             "3.0.0.0",
-            new Dictionary<string, string> { ["Core"] = "1.2.0.0" }), null, default);
+            new Dictionary<string, string> { ["SharedFoundation"] = "1.2.0.0" }), null, default);
 
         var resolver = new DependencyResolver(store);
-        var response = await resolver.GetDependentsAsync("core", default);
+        var response = await resolver.GetDependentsAsync("sharedfoundation", default);
 
-        Assert.Equal("core", response.Name);
+        Assert.Equal("sharedfoundation", response.Name);
         Assert.Equal(2, response.Dependents.Count);
-        Assert.Contains(response.Dependents, item => item.Dependent == "MetaForm" && item.RequiredVersion == "1.1.0.0");
-        Assert.Contains(response.Dependents, item => item.Dependent == "Portal" && item.RequiredVersion == "1.2.0.0");
+        Assert.Contains(response.Dependents, item => item.Dependent == "WorkspaceForms" && item.RequiredVersion == "1.1.0.0");
+        Assert.Contains(response.Dependents, item => item.Dependent == "ExperienceHub" && item.RequiredVersion == "1.2.0.0");
     }
 
     private static SolutionManifest CreateManifest(
