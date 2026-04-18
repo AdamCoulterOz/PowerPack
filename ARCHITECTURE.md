@@ -167,38 +167,38 @@ This table is purely an index for reverse lookups. It is not a second source of 
 
 PowerPack exposes a small API surface:
 
-- `POST /api/manifests`
-- `PUT /api/manifests/{name}/{version}`
-- `GET /api/manifests/{name}`
-- `GET /api/manifests/{name}/{version}`
-- `DELETE /api/manifests/{name}/{version}`
+- `POST /api/packages`
+- `PUT /api/packages/{name}/{version}`
+- `GET /api/packages/{name}`
+- `GET /api/packages/{name}/{version}`
+- `DELETE /api/packages/{name}/{version}`
 - `POST /api/resolve`
 - `POST /api/validate`
 - `POST /api/resolve-set`
 - `GET /api/dependents/{name}`
-- `GET /api/packages/{name}/{version}`
+- `GET /api/packages/{name}/{version}/download`
 
-### `POST /api/manifests`
+### `POST /api/packages`
 
 Creates or upserts a package-backed manifest from a managed solution zip upload.
 
 Use this when a publisher wants PowerPack to inspect a managed solution package, generate the normalized manifest server-side, store the zip, and index the result.
 
-### `PUT /api/manifests/{name}/{version}`
+### `PUT /api/packages/{name}/{version}`
 
 Creates or upserts a package-backed manifest at an explicit identity.
 
 The route and uploaded package must agree on solution name and version. If they do not, the request fails.
 
-### `GET /api/manifests/{name}`
+### `GET /api/packages/{name}`
 
 Lists all indexed versions of a solution, newest first.
 
-### `GET /api/manifests/{name}/{version}`
+### `GET /api/packages/{name}/{version}`
 
 Returns a single normalized manifest version.
 
-### `DELETE /api/manifests/{name}/{version}`
+### `DELETE /api/packages/{name}/{version}`
 
 Deletes a single indexed manifest version and its reverse dependency rows.
 
@@ -266,7 +266,7 @@ That lets a caller immediately project deployment requirements and download the 
 
 Returns the indexed reverse dependency list for one solution.
 
-### `GET /api/packages/{name}/{version}`
+### `GET /api/packages/{name}/{version}/download`
 
 Streams the stored managed solution package for one indexed solution version.
 

@@ -22,7 +22,7 @@ public sealed class ManifestFunctions(
 
     [Function("ListManifests")]
     public async Task<IActionResult> ListManifests(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "manifests/{name}")] HttpRequest request,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "packages/{name}")] HttpRequest request,
         string name,
         CancellationToken cancellationToken)
     {
@@ -47,7 +47,7 @@ public sealed class ManifestFunctions(
 
     [Function("GetManifest")]
     public async Task<IActionResult> GetManifest(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "manifests/{name}/{version}")] HttpRequest request,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "packages/{name}/{version}")] HttpRequest request,
         string name,
         string version,
         CancellationToken cancellationToken)
@@ -67,7 +67,7 @@ public sealed class ManifestFunctions(
 
     [Function("CreateManifest")]
     public async Task<IActionResult> CreateManifest(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "manifests")] HttpRequest request,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "packages")] HttpRequest request,
         CancellationToken cancellationToken)
     {
         return await PublishPackageInternal(request, null, null, cancellationToken);
@@ -75,7 +75,7 @@ public sealed class ManifestFunctions(
 
     [Function("UpsertManifest")]
     public async Task<IActionResult> UpsertManifest(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "manifests/{name}/{version}")] HttpRequest request,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "packages/{name}/{version}")] HttpRequest request,
         string name,
         string version,
         CancellationToken cancellationToken)
@@ -85,7 +85,7 @@ public sealed class ManifestFunctions(
 
     [Function("DeleteManifest")]
     public async Task<IActionResult> DeleteManifest(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "manifests/{name}/{version}")] HttpRequest request,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "packages/{name}/{version}")] HttpRequest request,
         string name,
         string version,
         CancellationToken cancellationToken)

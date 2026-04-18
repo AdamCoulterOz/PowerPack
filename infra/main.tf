@@ -4,8 +4,8 @@ locals {
   resource_name_prefix         = trim(replace(lower(trimspace(var.name_prefix)), "/[^a-z0-9-]/", "-"), "-")
   storage_account_name_prefix  = substr(replace(local.resource_name_prefix, "/[^a-z0-9]/", ""), 0, 13)
   resource_group_name          = coalesce(var.resource_group_name, "rg-${local.resource_name_prefix}")
-  service_plan_name            = "${local.resource_name_prefix}"
-  application_insights_name    = "${local.resource_name_prefix}"
+  service_plan_name            = local.resource_name_prefix
+  application_insights_name    = local.resource_name_prefix
   function_app_name            = "${local.resource_name_prefix}-${random_string.function_app_suffix.result}"
   powerpack_api_display_name   = title(replace(local.resource_name_prefix, "-", " "))
   powerpack_api_app_role_name  = "PowerPack.Access"
@@ -142,7 +142,7 @@ resource "azurerm_function_app_flex_consumption" "this" {
   auth_settings_v2 {
     auth_enabled           = true
     default_provider       = "azureactivedirectory"
-    excluded_paths         = ["/api/packages/*"]
+    excluded_paths         = ["/api/packages/*/download"]
     require_authentication = true
     require_https          = true
     runtime_version        = "~1"

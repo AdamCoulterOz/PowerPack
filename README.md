@@ -137,16 +137,16 @@ Important:
 
 The Function App exposes:
 
-- `POST /api/manifests`
-- `PUT /api/manifests/{name}/{version}`
-- `GET /api/manifests/{name}`
-- `GET /api/manifests/{name}/{version}`
-- `DELETE /api/manifests/{name}/{version}`
+- `POST /api/packages`
+- `PUT /api/packages/{name}/{version}`
+- `GET /api/packages/{name}`
+- `GET /api/packages/{name}/{version}`
+- `DELETE /api/packages/{name}/{version}`
 - `POST /api/resolve`
 - `POST /api/validate`
 - `POST /api/resolve-set`
 - `GET /api/dependents/{name}`
-- `GET /api/packages/{name}/{version}`
+- `GET /api/packages/{name}/{version}/download`
 
 Requests and responses are modeled and validated in C#.
 
@@ -168,7 +168,7 @@ Manifest publish now uploads the managed solution zip directly to PowerPack.
 
 That lets callers project the full deployment contract without issuing follow-up manifest lookups or any extra package-download sidecar.
 
-`GET /api/packages/{name}/{version}` is the direct package download endpoint.
+`GET /api/packages/{name}/{version}/download` is the direct package download endpoint.
 
 - it requires a signed PowerPack download token
 - it streams the stored zip from blob storage

@@ -18,7 +18,7 @@ public sealed class PackageFunctions(
 
     [Function("DownloadPackage")]
     public async Task<IActionResult> DownloadPackage(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "packages/{name}/{version}")] HttpRequest request,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "packages/{name}/{version}/download")] HttpRequest request,
         string name,
         string version,
         CancellationToken cancellationToken)

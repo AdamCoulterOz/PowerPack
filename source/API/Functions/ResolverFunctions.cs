@@ -171,7 +171,7 @@ public sealed class ResolverFunctions(
             Scheme = request.Scheme,
             Host = request.Host.Host,
             Port = request.Host.Port ?? -1,
-            Path = $"{request.PathBase}/api/packages/{Uri.EscapeDataString(name)}/{Uri.EscapeDataString(version)}",
+            Path = $"{request.PathBase}/api/packages/{Uri.EscapeDataString(name)}/{Uri.EscapeDataString(version)}/download",
             Query = $"token={Uri.EscapeDataString(token)}",
         };
         return builder.Uri.ToString();

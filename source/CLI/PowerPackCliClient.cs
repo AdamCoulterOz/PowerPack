@@ -42,7 +42,7 @@ internal sealed class PowerPackCliClient
         content.Headers.ContentType = new MediaTypeHeaderValue("application/zip");
 
         using var response = await httpClient.PostAsync(
-            $"{apiBaseUrl.TrimEnd('/')}/api/manifests?{string.Join("&", query)}",
+            $"{apiBaseUrl.TrimEnd('/')}/api/packages?{string.Join("&", query)}",
             content,
             cancellationToken
         );
