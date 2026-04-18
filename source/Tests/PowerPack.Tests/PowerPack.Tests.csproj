@@ -19,6 +19,7 @@
   <ItemGroup>
     <ProjectReference Include="../../Core/Core.csproj" />
     <ProjectReference Include="../../API/API.csproj" />
+    <ProjectReference Include="../../../test/src/PowerPack.TestFixtures/PowerPack.TestFixtures.csproj" />
   </ItemGroup>
 
   <ItemGroup>

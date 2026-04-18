@@ -23,6 +23,7 @@ It owns:
 - The CLI uses the same shared C# manifest-building code as the API through the `Core` project.
 - `infra/` is now a generic Terraform module rather than an environment-specific Terraform root.
 - Release packaging now produces two paired artifacts: `released-package.zip` for the API and `module-<version>.zip` for the Terraform module with a baked reference to that API asset URL.
+- `test/` now owns reusable test fixtures, including the release-consumer Terraform fixture and .NET-generated Power Platform solution package fixtures.
 - GitHub Actions now owns CI and tagged release packaging.
 - Contract definitions live in C# models and validators; there is no parallel JSON schema source of truth.
 - Documentation examples use a shared neutral solution set:
@@ -49,6 +50,9 @@ It owns:
   - API resolve-set
 - `source/Tests/`
   - xUnit coverage for shared/core behavior and API options
+- `test/`
+  - Terraform consumer fixture for released module validation
+  - .NET fixture generator for deterministic Power Platform solution zip packages
 - `infra/`
   - reusable Terraform module for PowerPack infrastructure
 - `.github/workflows/`
