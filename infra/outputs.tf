@@ -26,6 +26,10 @@ output "base_url" {
   value = "https://${azurerm_function_app_flex_consumption.this.default_hostname}"
 }
 
+output "api_package_uri" {
+  value = local.resolved_api_package_uri
+}
+
 output "application_client_id" {
   value = azuread_application.api.client_id
 }

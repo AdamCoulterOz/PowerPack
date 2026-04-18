@@ -55,7 +55,16 @@ jobs:
       - name: Archive API Package
         run: |
           cd ./artifacts/api/publish
-          zip -r ../powerpack-api.zip .
+          zip -r ../released-package.zip .
+
+      - name: Package Terraform Module
+        run: |
+          mkdir -p ./artifacts/module/package
+          cp ./infra/*.tf ./artifacts/module/package/
+          sed -i.bak 's|baked_api_package_uri = null|baked_api_package_uri = "https://example.invalid/released-package.zip"|' ./artifacts/module/package/release_package.tf
+          rm ./artifacts/module/package/release_package.tf.bak
+          cd ./artifacts/module/package
+          zip -r ../module-build.zip .
 
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
@@ -63,4 +72,5 @@ jobs:
           name: powerpack-build
           path: |
             ./artifacts/cli/*.nupkg
-            ./artifacts/api/powerpack-api.zip
+            ./artifacts/api/released-package.zip
+            ./artifacts/module/module-build.zip

@@ -337,13 +337,17 @@ The current hosted implementation is:
 - system-assigned managed identity
 - Azure Table Storage for index persistence
 - Microsoft Entra auth in front of the API
+- Terraform-managed `onedeploy` for Function App code deployment
+- a release-packaged Terraform module artifact with a baked pointer to its matching `released-package.zip` GitHub asset
 
 The Function App uses managed identity for:
 
 - host storage access
 - table access
 
-This keeps storage credentials out of application configuration.
+Released module artifacts carry their deployment package URL inside the module package itself. The released module package and the released API package are published as a matched pair.
+
+This keeps storage credentials out of application configuration while still letting the module deploy a concrete Function App package as part of the infrastructure rollout.
 
 ## Design Principles
 

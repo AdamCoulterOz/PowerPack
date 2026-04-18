@@ -10,6 +10,7 @@ locals {
   powerpack_api_display_name   = title(replace(local.resource_name_prefix, "-", " "))
   powerpack_api_app_role_name  = "PowerPack.Access"
   powerpack_api_identifier_uri = "api://${local.resource_name_prefix}"
+  resolved_api_package_uri     = local.baked_api_package_uri
 }
 
 resource "random_string" "storage_account_suffix" {
@@ -171,6 +172,65 @@ resource "azurerm_function_app_flex_consumption" "this" {
     "PowerPack__Downloads__TokenSigningKey"    = random_password.download_token_signing_key.result
     "PowerPack__Auth__ApplicationClientId"     = azuread_application.api.client_id
     "PowerPack__Auth__ApplicationIdUri"        = local.powerpack_api_identifier_uri
+  }
+}
+
+resource "azurerm_resource_group_template_deployment" "function_app_onedeploy" {
+  name                = "powerpack-api-onedeploy"
+  resource_group_name = azurerm_resource_group.this.name
+  deployment_mode     = "Incremental"
+
+  template_content = jsonencode({
+    "$schema"      = "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#"
+    contentVersion = "1.0.0.0"
+    parameters = {
+      functionAppName = {
+        type = "String"
+      }
+      location = {
+        type = "String"
+      }
+      packageUri = {
+        type = "String"
+      }
+    }
+    resources = [
+      {
+        name       = "[concat(parameters('functionAppName'), '/onedeploy')]"
+        type       = "Microsoft.Web/sites/extensions"
+        apiVersion = "2022-09-01"
+        location   = "[parameters('location')]"
+        properties = {
+          packageUri  = "[parameters('packageUri')]"
+          remoteBuild = false
+        }
+      }
+    ]
+  })
+
+  parameters_content = jsonencode({
+    functionAppName = {
+      value = azurerm_function_app_flex_consumption.this.name
+    }
+    location = {
+      value = azurerm_resource_group.this.location
+    }
+    packageUri = {
+      value = local.resolved_api_package_uri
+    }
+  })
+
+  depends_on = [
+    azurerm_function_app_flex_consumption.this,
+    azurerm_role_assignment.function_host_blob_owner,
+    azurerm_role_assignment.function_host_table_contributor,
+  ]
+
+  lifecycle {
+    precondition {
+      condition     = try(length(trimspace(local.resolved_api_package_uri)) > 0, false)
+      error_message = "No baked API package URI is configured. Use the released module artifact that was packaged with its matching API release asset."
+    }
   }
 }
 

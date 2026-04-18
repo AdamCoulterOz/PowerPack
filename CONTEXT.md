@@ -22,6 +22,7 @@ It owns:
 - The CLI is a .NET tool with package id `PowerPack.Cli` and command `powerpack`.
 - The CLI uses the same shared C# manifest-building code as the API through the `Core` project.
 - `infra/` is now a generic Terraform module rather than an environment-specific Terraform root.
+- Release packaging now produces two paired artifacts: `released-package.zip` for the API and `module-<version>.zip` for the Terraform module with a baked reference to that API asset URL.
 - GitHub Actions now owns CI and tagged release packaging.
 - Contract definitions live in C# models and validators; there is no parallel JSON schema source of truth.
 - Documentation examples use a shared neutral solution set:
@@ -62,6 +63,7 @@ It owns:
 - The CLI and API may authenticate differently, but they must use the same domain logic.
 - Delivery automation is GitHub-native through GitHub Actions workflows in `.github/workflows/`.
 - The Terraform code in `infra/` is consumed as a module by caller-owned root configurations.
+- The released Terraform module artifact, not the source tree, is the self-contained unit that carries the paired API package URI.
 - Contract and validation rules should not be duplicated in hand-maintained JSON schema files.
 
 ## Invariants
@@ -82,6 +84,7 @@ It owns:
 - Decide whether release assets alone are sufficient or whether the Function App zip should also be published to a package registry.
 - Review whether the built-in solution registry should remain checked in here or move to a separate source of truth.
 - Add an example root configuration that consumes the Terraform module from GitHub.
+- Decide whether GitHub Releases should remain the long-term host for the baked API package URI or whether Azure Blob Storage should own release distribution.
 
 ## Technical Debt
 

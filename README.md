@@ -51,7 +51,7 @@ Example:
 
 ```hcl
 module "powerpack" {
-  source = "./infra"
+  source = "https://github.com/org/repo/releases/download/v1.2.0/module-1.2.0.zip"
 
   name_prefix = "powerpack-prod"
   location    = "australiaeast"
@@ -62,6 +62,8 @@ Important:
 
 - the module derives its internal resource names from `name_prefix`
 - the storage account and function app names are generated to remain globally unique
+- released module artifacts bake in the matching API release asset URL so the module is self-contained
+- source-tree module files are not the deployment artifact; the packaged release module is
 - the module does not configure Flex Consumption always-ready instances, so the app remains eligible to scale to zero when idle
 - the module outputs the Function App hostname, API base URL, Entra app identifiers, and storage resource names
 
@@ -190,7 +192,8 @@ This repo uses GitHub Actions instead of Azure DevOps.
 - [`.github/workflows/release.yml`](./.github/workflows/release.yml)
   - runs on version tags like `v1.2.3`
   - packs the CLI with the tag version
-  - builds the Function App zip
+  - builds `released-package.zip` for the Function App
+  - builds `module-<version>.zip` with a baked reference to that release's API package asset URL
   - publishes the CLI package to GitHub Packages
   - creates a GitHub release with the packaged artifacts
 
@@ -265,5 +268,5 @@ GitHub Packages publish is handled by the release workflow.
 - the Function App owns table creation and schema usage:
   - `solutionindex`
   - `dependencyindex`
-- Function App code deployment happens outside Terraform through the GitHub release workflow artifacts
+- released Terraform module artifacts deploy Function App code through `onedeploy` using their baked `released-package.zip` asset URL
 - there is no shell polling or `local-exec` in the Terraform path
