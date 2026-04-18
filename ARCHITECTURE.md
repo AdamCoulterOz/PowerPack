@@ -176,18 +176,19 @@ PowerPack exposes a small API surface:
 - `POST /api/validate`
 - `POST /api/resolve-set`
 - `GET /api/dependents/{name}`
+- `GET /api/packages/{name}/{version}`
 
 ### `POST /api/manifests`
 
-Creates or upserts a manifest from a request body.
+Creates or upserts a package-backed manifest from a managed solution zip upload.
 
-Use this when a publisher has produced a manifest for a solution version and wants it indexed.
+Use this when a publisher wants PowerPack to inspect a managed solution package, generate the normalized manifest server-side, store the zip, and index the result.
 
 ### `PUT /api/manifests/{name}/{version}`
 
-Upserts a manifest at an explicit identity.
+Creates or upserts a package-backed manifest at an explicit identity.
 
-The route and body must agree. If they do not, the request fails.
+The route and uploaded package must agree on solution name and version. If they do not, the request fails.
 
 ### `GET /api/manifests/{name}`
 
@@ -253,11 +254,23 @@ Response includes:
 - `missing`
 - `invalid`
 
-Each `resolved` item also includes the normalized manifest payload, so a caller can immediately project deployment requirements without follow-up lookups.
+Each `resolved` item also includes:
+
+- the normalized manifest payload
+- stored package metadata
+- a time-limited PowerPack download URL
+
+That lets a caller immediately project deployment requirements and download the selected packages without follow-up manifest lookups or a separate artifact registry hop.
 
 ### `GET /api/dependents/{name}`
 
 Returns the indexed reverse dependency list for one solution.
+
+### `GET /api/packages/{name}/{version}`
+
+Streams the stored managed solution package for one indexed solution version.
+
+The request must include a valid signed PowerPack download token.
 
 ## Auth Model
 
@@ -279,31 +292,30 @@ PowerPack is intended to be consumed in the same way regardless of whether the c
 
 The generic usage flow is:
 
-1. Build or extract a solution manifest.
-2. Publish that manifest to the PowerPack registry.
-3. Ask PowerPack to resolve one solution or a set of solutions.
-4. Use the returned normalized manifests to build a deployment plan.
-5. Install or validate the selected solution versions using whatever transport tooling you prefer.
+1. Build the managed solution package.
+2. Upload that package to PowerPack.
+3. Let PowerPack generate and index the normalized manifest from the uploaded zip.
+4. Ask PowerPack to resolve one solution or a set of solutions.
+5. Use the returned manifests and signed package URLs to build and execute the deployment plan.
 
 ### What PowerPack Does
 
 - stores manifests
+- stores managed solution packages
 - normalizes versions
 - enforces case-invariant identity rules
 - resolves direct and transitive dependencies
 - merges multi-root constraints deterministically
 - exposes reverse dependency lookups
+- issues time-limited package download URLs
 
 ### What PowerPack Does Not Do
 
-- fetch package ZIPs
-- own artifact-feed transport
 - install solutions into environments
 - mutate environments directly
-- decide how a caller obtains solution packages
-- decide how a caller applies resolved manifests
+- decide how a caller applies resolved manifests after package retrieval
 
-That split is intentional. PowerPack owns dependency truth, not package transport.
+That split is intentional. PowerPack owns dependency truth and package distribution, not environment mutation.
 
 ## Built-In Solutions
 
