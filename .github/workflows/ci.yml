@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Restore
+        run: dotnet restore ./source/PowerPack.slnx
+
+      - name: Test
+        run: dotnet test ./source/PowerPack.slnx --configuration Release --no-restore
+
+      - name: Validate Terraform Module
+        run: |
+          terraform -chdir=./infra init -backend=false
+          terraform -chdir=./infra validate
+
+      - name: Pack CLI
+        run: |
+          dotnet pack ./source/CLI/CLI.csproj \
+            --configuration Release \
+            --no-restore \
+            -p:Version=0.0.0-ci.${{ github.run_number }} \
+            --output ./artifacts/cli
+
+      - name: Publish API
+        run: |
+          dotnet publish ./source/API/API.csproj \
+            --configuration Release \
+            --no-restore \
+            --output ./artifacts/api/publish
+
+      - name: Archive API Package
+        run: |
+          cd ./artifacts/api/publish
+          zip -r ../powerpack-api.zip .
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: powerpack-build
+          path: |
+            ./artifacts/cli/*.nupkg
+            ./artifacts/api/powerpack-api.zip

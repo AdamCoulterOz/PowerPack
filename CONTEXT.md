@@ -1,0 +1,83 @@
+# Context
+
+_Last updated: 2026-04-18_
+
+## Purpose
+
+PowerPack is the standalone solution registry and dependency resolver for packaged Power Platform solutions.
+
+It owns:
+
+- the PowerPack source projects under `source/`
+- the reusable Terraform module under `infra/`
+- the GitHub Actions workflows under `.github/workflows/`
+
+## Current State
+
+- The API stores manifests in Azure Table Storage and package zips in Azure Blob Storage.
+- Package publish uploads the managed solution zip directly to the API.
+- The API generates the manifest server-side from the uploaded zip.
+- Resolution returns signed PowerPack download URLs for packages.
+- The source layout is split into `source/Core/`, `source/API/`, `source/CLI/`, and `source/Tests/`.
+- The CLI is a .NET tool with package id `PowerPack.Cli` and command `powerpack`.
+- The CLI uses the same shared C# manifest-building code as the API through the `Core` project.
+- `infra/` is now a generic Terraform module rather than an environment-specific Terraform root.
+- GitHub Actions now owns CI and tagged release packaging.
+- Contract definitions live in C# models and validators; there is no parallel JSON schema source of truth.
+
+## Architecture
+
+- `source/Core/`
+  - shared domain and contract code
+  - manifest building
+  - dependency resolution
+  - storage abstractions
+- `source/API/`
+  - .NET 10 isolated Azure Functions app
+  - Azure-backed storage and download implementations
+- `source/CLI/`
+  - Spectre.Console command-line tool
+  - local manifest build
+  - API publish
+  - API resolve-set
+- `source/Tests/`
+  - xUnit coverage for shared/core behavior and API options
+- `infra/`
+  - reusable Terraform module for PowerPack infrastructure
+- `.github/workflows/`
+  - CI and release automation
+
+## Key Decisions
+
+- No silent fallbacks.
+- PowerPack is both the dependency index and the package registry.
+- Blob access is never exposed directly to consumers; downloads go through signed PowerPack API URLs.
+- Manifest generation logic lives in shared C# code, not duplicated across Python and C#.
+- The CLI and API may authenticate differently, but they must use the same domain logic.
+- The repo is GitHub-native and should not retain Azure DevOps-specific delivery plumbing.
+- The Terraform code in `infra/` is consumed as a module by caller-owned root configurations.
+- Contract and validation rules should not be duplicated in hand-maintained JSON schema files.
+
+## Invariants
+
+- Versions are normalized to four numeric segments for comparison.
+- Solution names are compared case-insensitively and preserved case-sensitively.
+- Package blob tags are:
+  - `Package`
+  - `Version`
+  - `Quality`
+- Supported package quality values are:
+  - `local`
+  - `prerelease`
+  - `release`
+
+## Follow-up
+
+- Decide whether release assets alone are sufficient or whether the Function App zip should also be published to a package registry.
+- Review whether the built-in solution registry should remain checked in here or move to a separate source of truth.
+- Add an example root configuration that consumes the Terraform module from GitHub.
+
+## Technical Debt
+
+- The Terraform module still creates its own Entra application and service principal, which is convenient but may be too opinionated for some tenants.
+- The release workflow currently publishes the CLI to GitHub Packages; consumers outside GitHub Packages may still want an alternate feed strategy.

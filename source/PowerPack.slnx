@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/Tests/">
+    <Project Path="Tests/PowerPack.Tests/PowerPack.Tests.csproj" />
+  </Folder>
+  <Project Path="./Core/Core.csproj" />
+  <Project Path="./API/API.csproj" />
+  <Project Path="./CLI/CLI.csproj" />
+</Solution>
