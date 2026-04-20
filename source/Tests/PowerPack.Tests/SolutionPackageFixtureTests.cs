@@ -1,4 +1,6 @@
 using System.Text.Json.Nodes;
+using System.Net;
+using System.Net.Http.Json;
 using Azure.Core;
 using PowerPack.Models;
 using PowerPack.Services;
@@ -78,6 +80,82 @@ public sealed class SolutionPackageFixtureTests
     }
 
     [Fact]
+    public async Task ManifestBuilder_PreservesConnectionParameterKeysContainingColons()
+    {
+        var fixture = new SolutionPackageFixture(
+            "NotifyLike",
+            "1.3.3.0",
+            "ExamplePublisher",
+            [],
+            [
+                new ConnectionReferenceFixture(
+                    "pp_notify_dataverse",
+                    "/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps",
+                    "Dataverse Notify",
+                    """
+                    Used by flows to read and update Dataverse data.
+                    [requirements]
+                    auth: service
+                    roles:
+                    - integration
+                    [connection]
+                    method: ServicePrincipalOauth
+                    parameters:
+                      token:clientId: ${client_id}
+                      token:clientSecret: ${client_secret}
+                      token:TenantId: ${tenant_id}
+                    """
+                ),
+            ]
+        );
+
+        var httpClient = new HttpClient(new StaticJsonHttpMessageHandler(
+            """
+            {
+              "properties": {
+                "connectionParameterSets": {
+                  "values": [
+                    {
+                      "name": "ServicePrincipalOauth",
+                      "parameters": {
+                        "token:clientId": {
+                          "type": "string",
+                          "uiDefinition": { "constraints": { "required": true } }
+                        },
+                        "token:clientSecret": {
+                          "type": "string",
+                          "uiDefinition": { "constraints": { "required": true } }
+                        },
+                        "token:TenantId": {
+                          "type": "string",
+                          "uiDefinition": { "constraints": { "required": true } }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+            """
+        ));
+        var builder = new SolutionPackageManifestBuilder(new PowerPlatformConnectorMetadataClient(httpClient, new StaticTokenCredential()));
+
+        var manifest = await builder.BuildAsync(
+            SolutionPackageFixtureWriter.CreateZipBytes(fixture),
+            "test-environment-id",
+            default
+        );
+
+        var connection = Assert.IsType<JsonObject>(manifest.Connections["pp_notify_dataverse"]);
+        var parameterSet = Assert.IsType<JsonObject>(connection["connection_parameters_set"]);
+        var values = Assert.IsType<JsonObject>(parameterSet["values"]);
+
+        Assert.Equal("${client_id}", values["token:clientId"]?["value"]?.GetValue<string>());
+        Assert.Equal("${client_secret}", values["token:clientSecret"]?["value"]?.GetValue<string>());
+        Assert.Equal("${tenant_id}", values["token:TenantId"]?["value"]?.GetValue<string>());
+    }
+
+    [Fact]
     public async Task DependencyResolver_ResolvesGeneratedFixturePackages()
     {
         var builder = CreateManifestBuilder();
@@ -112,6 +190,15 @@ public sealed class SolutionPackageFixtureTests
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
             throw new InvalidOperationException("Fixture tests should not call live connector metadata endpoints.");
+    }
+
+    private sealed class StaticJsonHttpMessageHandler(string payload) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = JsonContent.Create(JsonNode.Parse(payload))
+            });
     }
 
     private sealed class StaticTokenCredential : TokenCredential

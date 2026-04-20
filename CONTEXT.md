@@ -18,6 +18,7 @@ It owns:
 - Package publish uploads the managed solution zip directly to the API.
 - The API generates the manifest server-side from the uploaded zip.
 - The shared manifest builder accepts both the newer `Other/Customizations.xml` layout and the older flat `customizations.xml` layout used by legacy managed solution exports.
+- The shared manifest builder now correctly parses connection parameter keys that themselves contain colons, such as `token:clientId`, `token:clientSecret`, and `token:TenantId`.
 - Resolution returns signed PowerPack download URLs for packages.
 - The source layout is split into `source/Core/`, `source/API/`, `source/CLI/`, and `source/Tests/`.
 - The CLI is a .NET tool with package id `PowerPack.Cli` and command `powerpack`.
@@ -83,6 +84,7 @@ It owns:
 - Versions are normalized to four numeric segments for comparison.
 - Solution names are compared case-insensitively and preserved case-sensitively.
 - Managed solution package ingestion must accept both modern and legacy customization entry locations.
+- Description-block connection parameter keys may contain embedded colons and must be parsed without truncating the key name.
 - Package blob tags are:
   - `Package`
   - `Version`

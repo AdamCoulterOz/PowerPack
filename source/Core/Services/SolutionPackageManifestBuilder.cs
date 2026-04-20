@@ -820,7 +820,7 @@ public sealed class SolutionPackageManifestBuilder(PowerPlatformConnectorMetadat
 
     private static (string Key, string Value) SplitKeyValue(string rawLine, string path, int lineNumber)
     {
-        var separatorIndex = rawLine.IndexOf(':', StringComparison.Ordinal);
+        var separatorIndex = FindKeyValueSeparatorIndex(rawLine);
         if (separatorIndex < 0)
             throw new PowerPackValidationException($"{path} line {lineNumber} is not valid YAML key syntax.");
 
@@ -830,6 +830,24 @@ public sealed class SolutionPackageManifestBuilder(PowerPlatformConnectorMetadat
             throw new PowerPackValidationException($"{path} line {lineNumber} contains an empty key.");
 
         return (key, value);
+    }
+
+    private static int FindKeyValueSeparatorIndex(string rawLine)
+    {
+        for (var index = 0; index < rawLine.Length; index++)
+        {
+            if (rawLine[index] != ':')
+                continue;
+
+            if (index == rawLine.Length - 1)
+                return index;
+
+            var nextCharacter = rawLine[index + 1];
+            if (nextCharacter is ' ' or '\t')
+                return index;
+        }
+
+        return -1;
     }
 
     private static void EnsureEmptyInlineValue(string value, string path, int lineNumber, string key)
