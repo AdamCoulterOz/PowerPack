@@ -95,6 +95,20 @@ public sealed class DependencyResolverTests
     }
 
     [Fact]
+    public async Task Store_Rejects_MixedCaseManifestNames_InSamePartition()
+    {
+        var store = new InMemoryManifestIndexStore();
+        await store.UpsertManifestAsync(CreateManifest("core", "1.5.96.0"), null, default);
+
+        var exception = await Assert.ThrowsAsync<PowerPackValidationException>(() =>
+            store.UpsertManifestAsync(CreateManifest("Core", "1.5.105.0"), null, default));
+
+        Assert.Equal(
+            "Manifest index contains solution names that differ only by case: core, Core.",
+            exception.Message);
+    }
+
+    [Fact]
     public async Task Dependents_Return_ReverseLookupRows()
     {
         var store = new InMemoryManifestIndexStore();

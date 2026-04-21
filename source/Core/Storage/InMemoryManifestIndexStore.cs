@@ -128,7 +128,10 @@ public sealed class InMemoryManifestIndexStore : IManifestIndexStore
 
     private static void ValidateStoredNameConsistency(IEnumerable<string> exactNames, string expectedName)
     {
-        var distinctNames = exactNames.Distinct(StringComparer.Ordinal).ToList();
+        var distinctNames = exactNames
+            .Append(expectedName)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
         if (distinctNames.Count > 1)
             throw new PowerPackValidationException(
                 $"Manifest index contains solution names that differ only by case: {string.Join(", ", distinctNames)}."

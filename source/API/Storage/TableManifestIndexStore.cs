@@ -32,11 +32,13 @@ public sealed class TableManifestIndexStore : IManifestIndexStore
     )
     {
         var normalized = ManifestNormalizer.Normalize(manifest);
+        await _solutionIndex.CreateIfNotExistsAsync(cancellationToken);
+        await ValidateStoredNameConsistencyAsync(normalized.Name, cancellationToken);
+
         var existing = await GetManifestAsync(normalized.Name, normalized.ParsedVersion, cancellationToken);
         if (existing is not null)
             await DeleteDependencyRowsAsync(existing, cancellationToken);
 
-        await _solutionIndex.CreateIfNotExistsAsync(cancellationToken);
         await _dependencyIndex.CreateIfNotExistsAsync(cancellationToken);
 
         var manifestJson = JsonSerializer.Serialize(normalized, JsonSerializerOptions);
@@ -205,6 +207,30 @@ public sealed class TableManifestIndexStore : IManifestIndexStore
                 $"{GetSolutionPartitionKey(manifest.Name)}|{manifest.Version}",
                 ETag.All,
                 cancellationToken
+            );
+    }
+
+    private async Task ValidateStoredNameConsistencyAsync(string expectedName, CancellationToken cancellationToken)
+    {
+        var exactNames = new HashSet<string>(StringComparer.Ordinal)
+        {
+            expectedName,
+        };
+
+        await foreach (var entity in _solutionIndex.QueryAsync<TableEntity>(
+            filter: $"PartitionKey eq '{EscapeODataString(GetSolutionPartitionKey(expectedName))}'",
+            select: ["Name"],
+            cancellationToken: cancellationToken
+        ))
+        {
+            var existingName = entity.GetString("Name");
+            if (!string.IsNullOrWhiteSpace(existingName))
+                exactNames.Add(existingName);
+        }
+
+        if (exactNames.Count > 1)
+            throw new PowerPackValidationException(
+                $"Manifest index contains solution names that differ only by case: {string.Join(", ", exactNames.OrderBy(name => name, StringComparer.Ordinal))}."
             );
     }
 

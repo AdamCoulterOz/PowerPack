@@ -17,6 +17,7 @@ It owns:
 - The API stores manifests in Azure Table Storage and package zips in Azure Blob Storage.
 - Package publish uploads the managed solution zip directly to the API.
 - The API generates the manifest server-side from the uploaded zip.
+- Mixed-case manifest-name contamination is now blocked during index upsert so one solution partition cannot contain both `Core` and `core` style entries.
 - The shared manifest builder accepts both the newer `Other/Customizations.xml` layout and the older flat `customizations.xml` layout used by legacy managed solution exports.
 - The shared manifest builder now correctly parses connection parameter keys that themselves contain colons, such as `token:clientId`, `token:clientSecret`, and `token:TenantId`.
 - Resolution returns signed PowerPack download URLs for packages.
@@ -101,6 +102,7 @@ It owns:
 - Add an example root configuration that consumes the Terraform module from GitHub.
 - Decide whether GitHub Releases should remain the long-term host for the baked API package URI or whether Azure Blob Storage should own release distribution.
 - Clean up older scratch resource groups created while iterating on Flex Consumption OneDeploy behavior.
+- Consider adding a small admin/repair flow for enumerating and cleaning legacy mixed-case manifest partitions without touching table storage manually.
 
 ## Technical Debt
 
