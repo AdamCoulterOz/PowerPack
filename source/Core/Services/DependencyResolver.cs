@@ -16,7 +16,24 @@ public sealed class DependencyResolver(IManifestIndexStore store)
         if (request.Solutions.Count == 0)
             throw new PowerPackValidationException("resolve-set requires at least one solution.");
 
-        var rootConstraints = MergeReferences(request.Solutions);
+        var effectiveRoots = request.Solutions
+            .Where(solution => !_builtInSolutions.Contains(solution.Name))
+            .ToList();
+
+        if (effectiveRoots.Count == 0)
+        {
+            return new ResolutionResult
+            {
+                Status = "resolved",
+                Roots = [],
+                Constraints = new Dictionary<string, string>(StringComparer.Ordinal),
+                Resolved = [],
+                Missing = [],
+                Invalid = [],
+            };
+        }
+
+        var rootConstraints = MergeReferences(effectiveRoots);
         var selected = new Dictionary<string, SolutionManifest>(StringComparer.OrdinalIgnoreCase);
         var missing = new Dictionary<string, MissingRequirement>(StringComparer.OrdinalIgnoreCase);
         var invalid = new List<string>();
@@ -82,7 +99,7 @@ public sealed class DependencyResolver(IManifestIndexStore store)
         return new ResolutionResult
         {
             Status = missing.Count == 0 && invalid.Count == 0 ? "resolved" : "unresolved",
-            Roots = [.. request.Solutions
+            Roots = [.. effectiveRoots
                 .Select(solution => new SolutionReference
                 {
                     Name = solution.Name.Trim(),

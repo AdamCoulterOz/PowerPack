@@ -132,6 +132,33 @@ public sealed class DependencyResolverTests
     }
 
     [Fact]
+    public async Task ResolveSet_Ignores_BuiltIn_RootSolutions()
+    {
+        var store = new InMemoryManifestIndexStore();
+        await store.UpsertManifestAsync(CreateManifest("Core", "1.5.105.0"), null, default);
+
+        var resolver = new DependencyResolver(store);
+        var result = await resolver.ResolveSetAsync(
+            new ResolveSetRequest
+            {
+                Solutions =
+                [
+                    new SolutionReference { Name = "AppModuleWebResources", Version = "2.5.0.0" },
+                    new SolutionReference { Name = "Core", Version = "1.5.105.0" },
+                ]
+            },
+            default
+        );
+
+        Assert.Equal("resolved", result.Status);
+        Assert.Empty(result.Missing);
+        Assert.Single(result.Roots);
+        Assert.Equal("Core", result.Roots[0].Name);
+        Assert.Single(result.Resolved);
+        Assert.Equal("Core", result.Resolved[0].Name);
+    }
+
+    [Fact]
     public async Task Dependents_Return_ReverseLookupRows()
     {
         var store = new InMemoryManifestIndexStore();
