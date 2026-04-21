@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.IO;
 using System.Text.Json;
 using PowerPack.Models;
 using PowerPack.Services;
@@ -26,6 +27,10 @@ internal sealed class ResolveDeploymentGraphCommand : AsyncCommand<ResolveDeploy
         [CommandOption("--missingdependencies <PATH>")]
         [Description("Source solution missingdependencies.yml path.")]
         public required string MissingDependenciesPath { get; init; }
+
+        [CommandOption("--source-webresources-root <PATH>")]
+        [Description("Optional source-controlled dataverse/webresources directory to include when reconciling environment attachment policy.")]
+        public string? SourceWebresourcesRoot { get; init; }
 
         [CommandOption("--output <PATH>")]
         [Description("Optional path to write the deployment graph JSON.")]
@@ -65,7 +70,9 @@ internal sealed class ResolveDeploymentGraphCommand : AsyncCommand<ResolveDeploy
                 },
                 CancellationToken.None);
 
-            var graph = _graphBuilder.Build(resolution);
+            var graph = _graphBuilder.Build(
+                resolution,
+                CollectSourceAllowedAttachmentExtensions(settings.SourceWebresourcesRoot));
             var json = JsonSerializer.Serialize(
                 graph,
                 new JsonSerializerOptions(JsonSerializerDefaults.Web)
@@ -90,5 +97,31 @@ internal sealed class ResolveDeploymentGraphCommand : AsyncCommand<ResolveDeploy
             Console.Error.WriteLine(exception.Message);
             return 1;
         }
+    }
+
+    private static IList<string> CollectSourceAllowedAttachmentExtensions(string? sourceWebresourcesRoot)
+    {
+        if (string.IsNullOrWhiteSpace(sourceWebresourcesRoot))
+            return [];
+
+        var root = new DirectoryInfo(sourceWebresourcesRoot);
+        if (!root.Exists)
+            throw new CliException($"Source webresources directory was not found: {root.FullName}");
+
+        if ((root.Attributes & FileAttributes.Directory) == 0)
+            throw new CliException($"Source webresources path is not a directory: {root.FullName}");
+
+        var allowedAttachmentExtensions = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var file in root.EnumerateFiles("*", SearchOption.AllDirectories))
+        {
+            var normalizedExtension = AttachmentExtensionPolicy.NormalizeExtension(file.Extension);
+            if (normalizedExtension is null)
+                continue;
+
+            if (AttachmentExtensionPolicy.DefaultBlockedAttachmentExtensionSet.Contains(normalizedExtension))
+                allowedAttachmentExtensions.Add(normalizedExtension);
+        }
+
+        return AttachmentExtensionPolicy.NormalizeExtensions(allowedAttachmentExtensions);
     }
 }

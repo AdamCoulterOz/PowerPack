@@ -8,7 +8,9 @@ public sealed class DependencyDeploymentGraphBuilder
 {
     private const string PackageServiceIdentityName = "default";
 
-    public DependencyDeploymentGraph Build(ResolutionResult resolution)
+    public DependencyDeploymentGraph Build(
+        ResolutionResult resolution,
+        IEnumerable<string>? sourceAllowedAttachmentExtensions = null)
     {
         ArgumentNullException.ThrowIfNull(resolution);
 
@@ -97,6 +99,9 @@ public sealed class DependencyDeploymentGraphBuilder
                 EnvironmentRequirements = projectedManifest.EnvironmentRequirements,
             };
         }
+
+        foreach (var extension in AttachmentExtensionPolicy.NormalizeExtensions(sourceAllowedAttachmentExtensions))
+            requiredAllowedAttachmentExtensions.Add(extension);
 
         graph.EnvironmentRequirements = new DeploymentEnvironmentRequirements
         {

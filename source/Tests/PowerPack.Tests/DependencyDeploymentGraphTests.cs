@@ -136,6 +136,45 @@ MissingDependencies:
         Assert.DoesNotContain("js", graph.EnvironmentRequirements.Dataverse.BlockedAttachmentExtensions);
     }
 
+    [Fact]
+    public void DependencyDeploymentGraphBuilder_MergesSourceControlledWebresourceExtensionsIntoEnvironmentRequirements()
+    {
+        var builder = new DependencyDeploymentGraphBuilder();
+        var graph = builder.Build(
+            new ResolutionResult
+            {
+                Status = "resolved",
+                Roots =
+                [
+                    new SolutionReference { Name = "Core", Version = "1.5.105.0" },
+                ],
+                Resolved =
+                [
+                    new ResolvedSolution
+                    {
+                        Name = "Core",
+                        Version = "1.5.105.0",
+                        Publisher = "ExamplePublisher",
+                        Dependencies = new Dictionary<string, string>(),
+                        Manifest = CreateManifest("Core", "1.5.105.0", dependencies: new Dictionary<string, string>()),
+                        Package = new ResolvedPackage
+                        {
+                            DownloadUrl = "https://example.test/core.zip",
+                            ContentLength = 123,
+                            ContentType = "application/zip",
+                            FileName = "Core.zip",
+                            Quality = "prerelease",
+                        },
+                    },
+                ],
+            },
+            sourceAllowedAttachmentExtensions: ["js", "svg"]);
+
+        Assert.Equal(["js", "svg"], graph.EnvironmentRequirements.Dataverse.RequiredAllowedAttachmentExtensions);
+        Assert.DoesNotContain("js", graph.EnvironmentRequirements.Dataverse.BlockedAttachmentExtensions);
+        Assert.DoesNotContain("svg", graph.EnvironmentRequirements.Dataverse.BlockedAttachmentExtensions);
+    }
+
     private static SolutionManifest CreateManifest(
         string name,
         string version,
