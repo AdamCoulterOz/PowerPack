@@ -11,6 +11,8 @@ app.Configure(config =>
         .WithDescription("Upload a managed solution zip to the PowerPack API for validation, indexing, and storage.");
     config.AddCommand<ResolveSetCommand>("resolve-set")
         .WithDescription("Resolve a set of solution dependencies through the PowerPack API.");
+    config.AddCommand<ResolveDeploymentGraphCommand>("resolve-deployment-graph")
+        .WithDescription("Parse missingdependencies.yml, resolve dependencies through the PowerPack API, and emit a generic deployment graph.");
 });
 
 return await app.RunAsync(args);

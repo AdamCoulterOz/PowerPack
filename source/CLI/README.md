@@ -9,3 +9,6 @@ Core commands:
 - `powerpack build-manifest`
 - `powerpack publish`
 - `powerpack resolve-set`
+- `powerpack resolve-deployment-graph`
+
+`resolve-deployment-graph` parses a source `missingdependencies.yml`, resolves the non-built-in package set through the API, and emits a generic deployment graph that downstream consumers can adapt to their own infrastructure tooling.

@@ -10,6 +10,8 @@ namespace PowerPack.Cli;
 
 internal sealed class PowerPackCliClient
 {
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
     public async Task<JsonNode> PublishAsync(
         string apiBaseUrl,
         string applicationIdUri,
@@ -72,14 +74,27 @@ internal sealed class PowerPackCliClient
             );
         }
 
-        using var httpClient = await CreateHttpClientAsync(applicationIdUri, cancellationToken);
-        using var content = new StringContent(requestBody.ToJsonString(), Encoding.UTF8, "application/json");
-        using var response = await httpClient.PostAsync(
-            $"{apiBaseUrl.TrimEnd('/')}/api/resolve-set",
-            content,
-            cancellationToken
-        );
-        return await ReadJsonResponseAsync(response, cancellationToken);
+        return await ResolveSetAsync(apiBaseUrl, applicationIdUri, requestBody, cancellationToken);
+    }
+
+    public async Task<ResolutionResult> ResolveSetResultAsync(
+        string apiBaseUrl,
+        string applicationIdUri,
+        ResolveSetRequest request,
+        CancellationToken cancellationToken)
+    {
+        var requestBody = JsonSerializer.SerializeToNode(request, JsonOptions)
+            ?? throw new CliException("Resolve-set request body could not be serialized.");
+        var responseBody = await ResolveSetAsync(apiBaseUrl, applicationIdUri, requestBody, cancellationToken);
+        try
+        {
+            return responseBody.Deserialize<ResolutionResult>(JsonOptions)
+                ?? throw new CliException("PowerPack API returned an empty resolve-set response.");
+        }
+        catch (JsonException exception)
+        {
+            throw new CliException($"PowerPack API returned invalid resolve-set JSON: {exception.Message}");
+        }
     }
 
     private static async Task<HttpClient> CreateHttpClientAsync(
@@ -108,6 +123,22 @@ internal sealed class PowerPackCliClient
         return client;
     }
 
+    private async Task<JsonNode> ResolveSetAsync(
+        string apiBaseUrl,
+        string applicationIdUri,
+        JsonNode requestBody,
+        CancellationToken cancellationToken)
+    {
+        using var httpClient = await CreateHttpClientAsync(applicationIdUri, cancellationToken);
+        using var content = new StringContent(requestBody.ToJsonString(JsonOptions), Encoding.UTF8, "application/json");
+        using var response = await httpClient.PostAsync(
+            $"{apiBaseUrl.TrimEnd('/')}/api/resolve-set",
+            content,
+            cancellationToken
+        );
+        return await ReadJsonResponseAsync(response, cancellationToken);
+    }
+
     private static async Task<JsonNode> ReadJsonResponseAsync(
         HttpResponseMessage response,
         CancellationToken cancellationToken)
@@ -118,7 +149,7 @@ internal sealed class PowerPackCliClient
 
         try
         {
-            return JsonNode.Parse(payloadText)
+            return JsonNode.Parse(payloadText, documentOptions: default, nodeOptions: default)
                 ?? throw new CliException("PowerPack API returned an empty response.");
         }
         catch (JsonException exception)

@@ -25,6 +25,11 @@ It owns:
 - The source layout is split into `source/Core/`, `source/API/`, `source/CLI/`, and `source/Tests/`.
 - The CLI is a .NET tool with package id `PowerPack.Cli` and command `powerpack`.
 - The CLI uses the same shared C# manifest-building code as the API through the `Core` project.
+- The CLI now also owns `missingdependencies.yml` parsing and emits a generic deployment graph with:
+  - `roots`
+  - `topological_order`
+  - `nodes`
+  - package identities, connection references, environment variables, and download URLs per node
 - `infra/` is now a generic Terraform module rather than an environment-specific Terraform root.
 - Release packaging now produces two paired artifacts: `released-package.zip` for the API and `module-<version>.zip` for the Terraform module with a baked reference to that API asset URL.
 - `test/` now owns reusable test fixtures, including the release-consumer Terraform fixture and .NET-generated Power Platform solution package fixtures.
@@ -54,6 +59,7 @@ It owns:
   - local manifest build
   - API publish
   - API resolve-set
+  - deployment-graph generation from source `missingdependencies.yml`
 - `source/Tests/`
   - xUnit coverage for shared/core behavior, API options, and tokenized package download flow
 - `test/`
@@ -70,6 +76,7 @@ It owns:
 - PowerPack is both the dependency index and the package registry.
 - Blob access is never exposed directly to consumers; downloads go through signed PowerPack API URLs.
 - Manifest generation logic lives in shared C# code that is consumed by both the API and CLI.
+- Dependency-root inference and deployment-graph construction also live in shared C# code so downstream tooling does not re-implement PowerPack policy in another language.
 - The CLI and API may authenticate differently, but they must use the same domain logic.
 - Delivery automation is GitHub-native through GitHub Actions workflows in `.github/workflows/`.
 - The Terraform code in `infra/` is consumed as a module by caller-owned root configurations.

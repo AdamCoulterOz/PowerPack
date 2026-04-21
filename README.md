@@ -176,6 +176,8 @@ Manifest publish now uploads the managed solution zip directly to PowerPack.
 
 That lets callers project the full deployment contract without issuing follow-up manifest lookups or any extra package-download sidecar.
 
+The CLI also provides `powerpack resolve-deployment-graph`, which parses a source `missingdependencies.yml`, calls `resolve-set`, and emits a generic deployment graph with roots, topological order, per-package deployment metadata, identities, connection references, and environment variables.
+
 `GET /api/packages/{name}/{version}/download` is the direct package download endpoint.
 
 - it requires a signed PowerPack download token
