@@ -23,6 +23,9 @@ public sealed class SolutionManifest
     [JsonPropertyName("variables")]
     public JsonObject Variables { get; init; } = new();
 
+    [JsonPropertyName("environment_requirements")]
+    public SolutionEnvironmentRequirements EnvironmentRequirements { get; init; } = new();
+
     [JsonPropertyName("metadata")]
     public JsonObject? Metadata { get; init; }
 

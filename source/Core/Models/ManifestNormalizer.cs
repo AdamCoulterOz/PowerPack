@@ -35,6 +35,14 @@ public static class ManifestNormalizer
             Dependencies = dependencies,
             Connections = manifest.Connections.DeepClone().AsObject(),
             Variables = manifest.Variables.DeepClone().AsObject(),
+            EnvironmentRequirements = new SolutionEnvironmentRequirements
+            {
+                Dataverse = new DataverseSolutionEnvironmentRequirements
+                {
+                    AllowedAttachmentExtensions = AttachmentExtensionPolicy.NormalizeExtensions(
+                        manifest.EnvironmentRequirements.Dataverse.AllowedAttachmentExtensions),
+                },
+            },
             Metadata = manifest.Metadata?.DeepClone().AsObject(),
         };
     }

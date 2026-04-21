@@ -51,6 +51,7 @@ public sealed class DependencyDeploymentGraphBuilder
                 })
                 .ToList(),
         };
+        var requiredAllowedAttachmentExtensions = new HashSet<string>(StringComparer.Ordinal);
 
         foreach (var resolved in resolution.Resolved)
         {
@@ -75,6 +76,8 @@ public sealed class DependencyDeploymentGraphBuilder
             }
 
             var projectedManifest = ProjectManifest(manifest, canonicalNames);
+            foreach (var extension in projectedManifest.EnvironmentRequirements.Dataverse.AllowedAttachmentExtensions)
+                requiredAllowedAttachmentExtensions.Add(extension);
 
             graph.TopologicalOrder.Add(packageName);
             graph.Nodes[packageName] = new DependencyDeploymentNode
@@ -91,8 +94,22 @@ public sealed class DependencyDeploymentGraphBuilder
                 Identities = projectedManifest.Identities,
                 ConnectionReferences = projectedManifest.ConnectionReferences,
                 EnvironmentVariables = projectedManifest.EnvironmentVariables,
+                EnvironmentRequirements = projectedManifest.EnvironmentRequirements,
             };
         }
+
+        graph.EnvironmentRequirements = new DeploymentEnvironmentRequirements
+        {
+            Dataverse = new DataverseDeploymentEnvironmentRequirements
+            {
+                DefaultBlockedAttachmentExtensions = AttachmentExtensionPolicy.DefaultBlockedAttachmentExtensions.ToList(),
+                RequiredAllowedAttachmentExtensions = AttachmentExtensionPolicy.NormalizeExtensions(requiredAllowedAttachmentExtensions),
+                BlockedAttachmentExtensions = AttachmentExtensionPolicy.NormalizeExtensions(
+                    AttachmentExtensionPolicy.DefaultBlockedAttachmentExtensions.Except(
+                        requiredAllowedAttachmentExtensions,
+                        StringComparer.Ordinal)),
+            },
+        };
 
         return graph;
     }
@@ -319,6 +336,15 @@ public sealed class DependencyDeploymentGraphBuilder
             };
         }
 
+        var environmentRequirements = new SolutionEnvironmentRequirements
+        {
+            Dataverse = new DataverseSolutionEnvironmentRequirements
+            {
+                AllowedAttachmentExtensions = AttachmentExtensionPolicy.NormalizeExtensions(
+                    manifest.EnvironmentRequirements.Dataverse.AllowedAttachmentExtensions),
+            },
+        };
+
         return new ProjectedManifest
         {
             Name = packageName,
@@ -329,6 +355,7 @@ public sealed class DependencyDeploymentGraphBuilder
             Identities = identities,
             ConnectionReferences = connectionReferences,
             EnvironmentVariables = environmentVariables,
+            EnvironmentRequirements = environmentRequirements,
         };
     }
 
@@ -444,5 +471,7 @@ public sealed class DependencyDeploymentGraphBuilder
         public IDictionary<string, DeploymentConnectionReference> ConnectionReferences { get; init; } = new Dictionary<string, DeploymentConnectionReference>(StringComparer.Ordinal);
 
         public IDictionary<string, DeploymentEnvironmentVariable> EnvironmentVariables { get; init; } = new Dictionary<string, DeploymentEnvironmentVariable>(StringComparer.Ordinal);
+
+        public SolutionEnvironmentRequirements EnvironmentRequirements { get; init; } = new();
     }
 }

@@ -8,6 +8,9 @@ public sealed class DependencyDeploymentGraph
     [JsonPropertyName("roots")]
     public IList<SolutionReference> Roots { get; init; } = [];
 
+    [JsonPropertyName("environment_requirements")]
+    public DeploymentEnvironmentRequirements EnvironmentRequirements { get; set; } = new();
+
     [JsonPropertyName("topological_order")]
     public IList<string> TopologicalOrder { get; init; } = [];
 
@@ -52,6 +55,9 @@ public sealed class DependencyDeploymentNode
 
     [JsonPropertyName("environment_variables")]
     public IDictionary<string, DeploymentEnvironmentVariable> EnvironmentVariables { get; init; } = new Dictionary<string, DeploymentEnvironmentVariable>(StringComparer.Ordinal);
+
+    [JsonPropertyName("environment_requirements")]
+    public SolutionEnvironmentRequirements EnvironmentRequirements { get; init; } = new();
 }
 
 public sealed class DeploymentIdentity

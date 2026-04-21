@@ -1,6 +1,8 @@
 using System.Text.Json.Nodes;
 using System.Net;
 using System.Net.Http.Json;
+using System.IO.Compression;
+using System.Text;
 using Azure.Core;
 using PowerPack.Models;
 using PowerPack.Services;
@@ -156,6 +158,16 @@ public sealed class SolutionPackageFixtureTests
     }
 
     [Fact]
+    public async Task ManifestBuilder_InfersAllowedAttachmentExtensionsFromPackageContents()
+    {
+        var builder = CreateManifestBuilder();
+
+        var manifest = await builder.BuildAsync(CreateManagedSolutionZipWithBlockedAttachmentContent(), null, default);
+
+        Assert.Equal(["js"], manifest.EnvironmentRequirements.Dataverse.AllowedAttachmentExtensions);
+    }
+
+    [Fact]
     public async Task DependencyResolver_ResolvesGeneratedFixturePackages()
     {
         var builder = CreateManifestBuilder();
@@ -184,6 +196,57 @@ public sealed class SolutionPackageFixtureTests
         var httpClient = new HttpClient(new ThrowingHttpMessageHandler());
         var tokenCredential = new StaticTokenCredential();
         return new SolutionPackageManifestBuilder(new PowerPlatformConnectorMetadataClient(httpClient, tokenCredential));
+    }
+
+    private static byte[] CreateManagedSolutionZipWithBlockedAttachmentContent()
+    {
+        using var buffer = new MemoryStream();
+        using (var archive = new ZipArchive(buffer, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            WriteTextEntry(
+                archive,
+                "solution.xml",
+                """
+                <ImportExportXml>
+                  <SolutionManifest>
+                    <UniqueName>PortalLike</UniqueName>
+                    <Version>1.0.0.0</Version>
+                    <Publisher>
+                      <UniqueName>ExamplePublisher</UniqueName>
+                    </Publisher>
+                  </SolutionManifest>
+                </ImportExportXml>
+                """
+            );
+            WriteTextEntry(
+                archive,
+                "customizations.xml",
+                """
+                <ImportExportXml>
+                  <WebResources>
+                    <WebResource>
+                      <WebResourceId>{00000000-0000-0000-0000-000000000001}</WebResourceId>
+                      <Name>sch_lookupdropdown</Name>
+                      <DisplayName>Lookup Dropdown JS</DisplayName>
+                      <WebResourceType>3</WebResourceType>
+                      <FileName>/WebResources/sch_lookupdropdown00000000-0000-0000-0000-000000000001</FileName>
+                    </WebResource>
+                  </WebResources>
+                </ImportExportXml>
+                """
+            );
+            WriteTextEntry(archive, "powerpagecomponents/example/filecontent/lookup-dropdown.js", "console.log('hi');");
+        }
+
+        return buffer.ToArray();
+    }
+
+    private static void WriteTextEntry(ZipArchive archive, string path, string content)
+    {
+        var entry = archive.CreateEntry(path, CompressionLevel.NoCompression);
+        using var stream = entry.Open();
+        using var writer = new StreamWriter(stream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+        writer.Write(content);
     }
 
     private sealed class ThrowingHttpMessageHandler : HttpMessageHandler

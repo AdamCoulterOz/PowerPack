@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.IO;
 using System.IO.Compression;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -12,6 +13,21 @@ public sealed class SolutionPackageManifestBuilder(PowerPlatformConnectorMetadat
 {
     private static readonly Regex DescriptionSectionHeaderPattern = new(@"^\[([A-Za-z][A-Za-z0-9_-]*)\]\s*$", RegexOptions.Compiled);
     private static readonly Regex DependencySolutionPattern = new(@"(.+?)\s+\((\d+(?:\.\d+)*)\)$", RegexOptions.Compiled);
+    private static readonly IReadOnlyDictionary<string, string> WebResourceTypeToExtension = new Dictionary<string, string>(StringComparer.Ordinal)
+    {
+        ["1"] = "htm",
+        ["2"] = "css",
+        ["3"] = "js",
+        ["4"] = "xml",
+        ["5"] = "png",
+        ["6"] = "jpg",
+        ["7"] = "gif",
+        ["8"] = "xap",
+        ["9"] = "xsl",
+        ["10"] = "ico",
+        ["11"] = "svg",
+        ["12"] = "resx",
+    };
 
     private readonly PowerPlatformConnectorMetadataClient _connectorMetadataClient = connectorMetadataClient;
 
@@ -63,6 +79,7 @@ public sealed class SolutionPackageManifestBuilder(PowerPlatformConnectorMetadat
             cancellationToken
         );
         var variables = ExtractVariables(customizationsDocument, customizationsXmlPath);
+        var environmentRequirements = ExtractEnvironmentRequirements(archive, customizationsDocument);
 
         return ManifestNormalizer.Normalize(new SolutionManifest
         {
@@ -72,6 +89,7 @@ public sealed class SolutionPackageManifestBuilder(PowerPlatformConnectorMetadat
             Dependencies = dependencies,
             Connections = connections,
             Variables = variables,
+            EnvironmentRequirements = environmentRequirements,
             Metadata = new JsonObject
             {
                 ["package_name"] = uniqueName.ToLowerInvariant(),
@@ -79,6 +97,50 @@ public sealed class SolutionPackageManifestBuilder(PowerPlatformConnectorMetadat
                 ["solution_package_version"] = version.ToString(),
             },
         });
+    }
+
+    private static SolutionEnvironmentRequirements ExtractEnvironmentRequirements(
+        ZipArchive archive,
+        XDocument customizationsDocument)
+    {
+        var allowedAttachmentExtensions = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var entry in archive.Entries)
+        {
+            var normalizedExtension = AttachmentExtensionPolicy.NormalizeExtension(Path.GetExtension(entry.Name));
+            if (normalizedExtension is not null &&
+                AttachmentExtensionPolicy.DefaultBlockedAttachmentExtensionSet.Contains(normalizedExtension))
+            {
+                allowedAttachmentExtensions.Add(normalizedExtension);
+            }
+        }
+
+        foreach (var webResourceNode in customizationsDocument.Descendants().Where(node => LocalName(node) == "WebResource"))
+        {
+            var extensionsToCheck = new List<string?>();
+            var webResourceName = webResourceNode.Elements().FirstOrDefault(node => LocalName(node) == "Name")?.Value;
+            var fileName = webResourceNode.Elements().FirstOrDefault(node => LocalName(node) == "FileName")?.Value;
+            var webResourceType = webResourceNode.Elements().FirstOrDefault(node => LocalName(node) == "WebResourceType")?.Value;
+
+            extensionsToCheck.Add(AttachmentExtensionPolicy.NormalizeExtension(Path.GetExtension(webResourceName ?? string.Empty)));
+            extensionsToCheck.Add(AttachmentExtensionPolicy.NormalizeExtension(Path.GetExtension(fileName ?? string.Empty)));
+            if (webResourceType is not null && WebResourceTypeToExtension.TryGetValue(webResourceType.Trim(), out var mappedExtension))
+                extensionsToCheck.Add(AttachmentExtensionPolicy.NormalizeExtension(mappedExtension));
+
+            foreach (var normalizedExtension in extensionsToCheck.Where(value => value is not null).Cast<string>())
+            {
+                if (AttachmentExtensionPolicy.DefaultBlockedAttachmentExtensionSet.Contains(normalizedExtension))
+                    allowedAttachmentExtensions.Add(normalizedExtension);
+            }
+        }
+
+        return new SolutionEnvironmentRequirements
+        {
+            Dataverse = new DataverseSolutionEnvironmentRequirements
+            {
+                AllowedAttachmentExtensions = AttachmentExtensionPolicy.NormalizeExtensions(allowedAttachmentExtensions),
+            },
+        };
     }
 
     private async Task<JsonObject> ExtractConnectionsAsync(

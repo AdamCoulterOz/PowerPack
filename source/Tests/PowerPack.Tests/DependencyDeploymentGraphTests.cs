@@ -104,6 +104,7 @@ MissingDependencies:
         Assert.Equal("core", coreNode.PackageTransportName);
         Assert.Equal("1.5.105.0", coreNode.SolutionPackageVersion);
         Assert.Equal("https://example.test/core.zip", coreNode.DownloadUrl);
+        Assert.Equal(["js"], coreNode.EnvironmentRequirements.Dataverse.AllowedAttachmentExtensions);
         Assert.Collection(
             coreNode.Dependencies,
             dependency =>
@@ -129,6 +130,10 @@ MissingDependencies:
         var environmentVariable = coreNode.EnvironmentVariables["sch_sampleJson"];
         Assert.Equal("json", environmentVariable.Type);
         Assert.Equal("{\"enabled\":true}", environmentVariable.StringValue);
+
+        Assert.Contains("js", graph.EnvironmentRequirements.Dataverse.DefaultBlockedAttachmentExtensions);
+        Assert.Equal(["js"], graph.EnvironmentRequirements.Dataverse.RequiredAllowedAttachmentExtensions);
+        Assert.DoesNotContain("js", graph.EnvironmentRequirements.Dataverse.BlockedAttachmentExtensions);
     }
 
     private static SolutionManifest CreateManifest(
@@ -151,6 +156,13 @@ MissingDependencies:
                 ["package_name"] = name.ToLowerInvariant(),
                 ["package_version"] = version,
                 ["solution_package_version"] = version,
+            },
+            EnvironmentRequirements = new SolutionEnvironmentRequirements
+            {
+                Dataverse = new DataverseSolutionEnvironmentRequirements
+                {
+                    AllowedAttachmentExtensions = ["js"],
+                },
             },
             Connections = new JsonObject
             {

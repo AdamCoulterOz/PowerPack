@@ -21,6 +21,9 @@ It owns:
 - The resolver now suppresses built-in platform solutions using the checked-in built-in registry for both direct roots and transitive dependencies, so indexed package manifests can safely reference Microsoft-managed solutions without requiring package records for them.
 - The shared manifest builder accepts both the newer `Other/Customizations.xml` layout and the older flat `customizations.xml` layout used by legacy managed solution exports.
 - The shared manifest builder now correctly parses connection parameter keys that themselves contain colons, such as `token:clientId`, `token:clientSecret`, and `token:TenantId`.
+- The shared manifest builder now also infers Dataverse attachment-policy requirements from packaged solution contents.
+  - explicit packaged files with blocked extensions, such as `*.js`, are detected directly from the archive
+  - classic Dataverse web resources are also inspected through `customizations.xml` so a `WebResourceType` of script still produces an attachment-policy requirement even when the packaged payload path has no filename extension
 - Resolution returns signed PowerPack download URLs for packages.
 - The source layout is split into `source/Core/`, `source/API/`, `source/CLI/`, and `source/Tests/`.
 - The CLI is a .NET tool with package id `PowerPack.Cli` and command `powerpack`.
@@ -30,6 +33,7 @@ It owns:
   - `topological_order`
   - `nodes`
   - package identities, connection references, environment variables, and download URLs per node
+  - graph-level environment requirements, including the reconciled Dataverse blocked attachment extension list
 - `infra/` is now a generic Terraform module rather than an environment-specific Terraform root.
 - Release packaging now produces two paired artifacts: `released-package.zip` for the API and `module-<version>.zip` for the Terraform module with a baked reference to that API asset URL.
 - `test/` now owns reusable test fixtures, including the release-consumer Terraform fixture and .NET-generated Power Platform solution package fixtures.
@@ -37,6 +41,7 @@ It owns:
 - API authorization now runs in the Function code so protected endpoints require Entra app-role tokens while package download remains publicly reachable with a signed query token.
 - GitHub Actions now owns CI and tagged release packaging.
 - Contract definitions live in C# models and validators; there is no parallel JSON schema source of truth.
+- The default blocked Dataverse attachment extension list is checked into `source/Core/default-blocked-attachment-extensions.txt` and loaded by shared Core code.
 - Documentation examples use a shared neutral solution set:
   - `WorkspaceForms`
   - `ExperienceHub`
@@ -77,6 +82,7 @@ It owns:
 - Blob access is never exposed directly to consumers; downloads go through signed PowerPack API URLs.
 - Manifest generation logic lives in shared C# code that is consumed by both the API and CLI.
 - Dependency-root inference and deployment-graph construction also live in shared C# code so downstream tooling does not re-implement PowerPack policy in another language.
+- Deployment-graph generation is also responsible for reconciling package-driven environment requirements, including Dataverse attachment-extension policy, so downstream consumers only apply resolved target state.
 - The CLI and API may authenticate differently, but they must use the same domain logic.
 - Delivery automation is GitHub-native through GitHub Actions workflows in `.github/workflows/`.
 - The Terraform code in `infra/` is consumed as a module by caller-owned root configurations.
@@ -102,6 +108,10 @@ It owns:
   - `local`
   - `prerelease`
   - `release`
+- Dataverse attachment policy is modeled as:
+  - package-level required allowed attachment extensions
+  - graph-level default blocked attachment extensions
+  - graph-level effective blocked attachment extensions after reconciliation
 
 ## Follow-up
 

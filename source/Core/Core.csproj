@@ -14,6 +14,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="built-in-solutions.json" />
+    <EmbeddedResource Include="default-blocked-attachment-extensions.txt" />
   </ItemGroup>
 
 </Project>
