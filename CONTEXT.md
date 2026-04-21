@@ -18,6 +18,7 @@ It owns:
 - Package publish uploads the managed solution zip directly to the API.
 - The API generates the manifest server-side from the uploaded zip.
 - Mixed-case manifest-name contamination is now blocked during index upsert so one solution partition cannot contain both `Core` and `core` style entries.
+- The resolver now suppresses built-in platform solution dependencies using the checked-in built-in registry, so indexed package manifests can safely reference Microsoft-managed solutions without requiring package records for them.
 - The shared manifest builder accepts both the newer `Other/Customizations.xml` layout and the older flat `customizations.xml` layout used by legacy managed solution exports.
 - The shared manifest builder now correctly parses connection parameter keys that themselves contain colons, such as `token:clientId`, `token:clientSecret`, and `token:TenantId`.
 - Resolution returns signed PowerPack download URLs for packages.

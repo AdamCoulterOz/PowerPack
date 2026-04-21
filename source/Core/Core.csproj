@@ -12,4 +12,8 @@
     <PackageReference Include="Azure.Core" Version="1.51.1" />
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="built-in-solutions.json" />
+  </ItemGroup>
+
 </Project>

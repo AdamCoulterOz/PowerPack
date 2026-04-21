@@ -6,6 +6,7 @@ namespace PowerPack.Services;
 public sealed class DependencyResolver(IManifestIndexStore store)
 {
     private readonly IManifestIndexStore _store = store;
+    private readonly BuiltInSolutionRegistry _builtInSolutions = BuiltInSolutionRegistry.Default;
 
 	public Task<ResolutionResult> ResolveAsync(SolutionReference solution, CancellationToken cancellationToken) =>
         ResolveSetAsync(new ResolveSetRequest { Solutions = [solution] }, cancellationToken);
@@ -55,11 +56,16 @@ public sealed class DependencyResolver(IManifestIndexStore store)
             var expandedConstraints = CloneConstraints(rootConstraints);
             foreach (var manifest in selected.Values.OrderBy(value => value.Name, StringComparer.OrdinalIgnoreCase))
                 foreach (var dependency in manifest.Dependencies)
+                {
+                    if (_builtInSolutions.Contains(dependency.Key))
+                        continue;
+
                     MergeConstraint(
                         expandedConstraints,
                         dependency.Key,
                         SolutionVersion.Parse(dependency.Value)
                     );
+                }
 
             constraints = expandedConstraints;
 
@@ -102,7 +108,12 @@ public sealed class DependencyResolver(IManifestIndexStore store)
     {
         var constraints = new Dictionary<string, ConstraintState>(StringComparer.OrdinalIgnoreCase);
         foreach (var dependency in request.Dependencies)
+        {
+            if (_builtInSolutions.Contains(dependency.Key))
+                continue;
+
             MergeConstraint(constraints, dependency.Key, SolutionVersion.Parse(dependency.Value));
+        }
 
         var resolved = new List<ResolvedSolution>();
         var missing = new List<MissingRequirement>();
