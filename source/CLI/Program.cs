@@ -13,6 +13,8 @@ app.Configure(config =>
         .WithDescription("Resolve a set of solution dependencies through the PowerPack API.");
     config.AddCommand<ResolveDeploymentGraphCommand>("resolve-deployment-graph")
         .WithDescription("Parse missingdependencies.yml, resolve dependencies through the PowerPack API, and emit a generic deployment graph.");
+    config.AddCommand<InstallPackageCommand>("install-package")
+        .WithDescription("Resolve, download, and import a PowerPack package and its dependencies into a Power Platform environment.");
 });
 
 return await app.RunAsync(args);

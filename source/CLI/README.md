@@ -10,5 +10,8 @@ Core commands:
 - `powerpack publish`
 - `powerpack resolve-set`
 - `powerpack resolve-deployment-graph`
+- `powerpack install-package`
 
 `resolve-deployment-graph` parses a source `missingdependencies.yml`, resolves the non-built-in package set through the API, and emits a generic deployment graph that downstream consumers can adapt to their own infrastructure tooling.
+
+`install-package` resolves a root package through the PowerPack API, downloads the root package and all package-managed dependencies, and imports them into a target Dataverse environment in dependency-first order using `pac solution import`. If imports need PAC deployment settings for connection references or environment variables, provide `--settings-directory` with per-package JSON files named by package name, transport package name, or solution unique name.

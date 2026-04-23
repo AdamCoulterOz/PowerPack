@@ -178,6 +178,8 @@ That lets callers project the full deployment contract without issuing follow-up
 
 The CLI also provides `powerpack resolve-deployment-graph`, which parses a source `missingdependencies.yml`, calls `resolve-set`, and emits a generic deployment graph with roots, topological order, per-package deployment metadata, identities, connection references, and environment variables.
 
+The CLI also provides `powerpack install-package`, an operator command for directly installing one PowerPack package and its package-managed dependencies into a Dataverse environment without generating Terraform. It resolves the requested package through the API, downloads every resolved package, computes dependency-first install order, and imports the packages with `pac solution import`. Optional per-package PAC deployment settings can be supplied with `--settings-directory`.
+
 `GET /api/packages/{name}/{version}/download` is the direct package download endpoint.
 
 - it requires a signed PowerPack download token

@@ -97,6 +97,30 @@ internal sealed class PowerPackCliClient
         }
     }
 
+    public async Task DownloadPackageAsync(
+        string downloadUrl,
+        string outputPath,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(downloadUrl))
+            throw new CliException("Package download URL is required.");
+
+        var outputFile = new FileInfo(outputPath);
+        Directory.CreateDirectory(outputFile.DirectoryName!);
+
+        using var httpClient = new HttpClient();
+        using var response = await httpClient.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            var payloadText = await response.Content.ReadAsStringAsync(cancellationToken);
+            throw new CliException(BuildHttpErrorMessage(response, payloadText));
+        }
+
+        await using var packageStream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        await using var outputStream = outputFile.Create();
+        await packageStream.CopyToAsync(outputStream, cancellationToken);
+    }
+
     private static async Task<HttpClient> CreateHttpClientAsync(
         string applicationIdUri,
         CancellationToken cancellationToken)

@@ -1,6 +1,6 @@
 # Context
 
-_Last updated: 2026-04-18_
+_Last updated: 2026-04-23_
 
 ## Purpose
 
@@ -34,6 +34,11 @@ It owns:
   - `nodes`
   - package identities, connection references, environment variables, and download URLs per node
   - graph-level environment requirements, including the reconciled Dataverse blocked attachment extension list
+- The CLI can install a PowerPack package and its package-managed dependencies directly into a Dataverse environment with `powerpack install-package`.
+  - it resolves the requested root package through the PowerPack API
+  - it downloads every resolved package
+  - it imports packages with `pac solution import` in dependency-first order
+  - optional per-package PAC deployment settings can be supplied from a settings directory
 - `infra/` is now a generic Terraform module rather than an environment-specific Terraform root.
 - Release packaging now produces two paired artifacts: `released-package.zip` for the API and `module-<version>.zip` for the Terraform module with a baked reference to that API asset URL.
 - `test/` now owns reusable test fixtures, including the release-consumer Terraform fixture and .NET-generated Power Platform solution package fixtures.
@@ -65,6 +70,7 @@ It owns:
   - API publish
   - API resolve-set
   - deployment-graph generation from source `missingdependencies.yml`
+  - direct operator package install through `pac solution import`
 - `source/Tests/`
   - xUnit coverage for shared/core behavior, API options, and tokenized package download flow
 - `test/`
@@ -83,6 +89,7 @@ It owns:
 - Manifest generation logic lives in shared C# code that is consumed by both the API and CLI.
 - Dependency-root inference and deployment-graph construction also live in shared C# code so downstream tooling does not re-implement PowerPack policy in another language.
 - Deployment-graph generation is also responsible for reconciling package-driven environment requirements, including Dataverse attachment-extension policy, so downstream consumers only apply resolved target state.
+- Direct CLI installation is an operator path for installing package zips and dependencies; it deliberately does not provision Dataverse environments, service identities, or connector instances.
 - The CLI and API may authenticate differently, but they must use the same domain logic.
 - Delivery automation is GitHub-native through GitHub Actions workflows in `.github/workflows/`.
 - The Terraform code in `infra/` is consumed as a module by caller-owned root configurations.
