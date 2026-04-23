@@ -24,7 +24,7 @@ public sealed class ApiAuthorizationTests
     [Fact]
     public async Task AuthorizeAsync_Allows_User_Token_With_Required_Delegated_Scope()
     {
-        var service = CreateAuthorizationService([new Claim("scp", "openid PowerPack.Access profile")], out var token);
+        var service = CreateAuthorizationService([new Claim("scp", "openid user_impersonation profile")], out var token);
         var request = CreateRequest(token);
 
         await service.AuthorizeAsync(request, default);
@@ -50,7 +50,7 @@ public sealed class ApiAuthorizationTests
         var exception = await Assert.ThrowsAsync<PowerPackUnauthorizedException>(() => service.AuthorizeAsync(request, default));
 
         Assert.Equal(
-            "Bearer token is missing required role 'PowerPack.Access' or delegated scope 'PowerPack.Access'.",
+            "Bearer token is missing required role 'PowerPack.Access' or delegated scope 'user_impersonation'.",
             exception.Message
         );
     }
@@ -88,7 +88,7 @@ public sealed class ApiAuthorizationTests
                 ApplicationIdUri = "api://powerpack.test",
                 TenantId = "test-tenant",
                 RequiredRole = "PowerPack.Access",
-                RequiredScope = "PowerPack.Access",
+                RequiredScope = "user_impersonation",
             },
             new StaticConfigurationManager(configuration)
         );

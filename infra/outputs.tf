@@ -47,7 +47,7 @@ output "app_role_id" {
 }
 
 output "delegated_scope" {
-  value = "${local.powerpack_api_identifier_uri}/${local.powerpack_api_app_role_name}"
+  value = "${local.powerpack_api_identifier_uri}/${local.powerpack_api_scope_name}"
 }
 
 output "application_insights_connection_string" {

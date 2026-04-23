@@ -270,8 +270,8 @@ GitHub Packages publish is handled by the release workflow.
   - `PowerPack__Auth__ApplicationClientId`
   - `PowerPack__Auth__ApplicationIdUri`
   - `PowerPack__Auth__TenantId`
-  - `PowerPack__Auth__RequiredRole`
-  - `PowerPack__Auth__RequiredScope`
+  - `PowerPack__Auth__RequiredRole=PowerPack.Access`
+  - `PowerPack__Auth__RequiredScope=user_impersonation`
 - Application Insights ingestion is configured with:
   - `APPLICATIONINSIGHTS_AUTHENTICATION_STRING=Authorization=AAD`
 - the Function App identity is granted:

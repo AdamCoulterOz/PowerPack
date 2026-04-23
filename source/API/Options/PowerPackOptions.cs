@@ -97,7 +97,7 @@ public sealed class AuthOptions
     public string RequiredRole { get; init; } = "PowerPack.Access";
 
     [Required]
-    public string RequiredScope { get; init; } = "PowerPack.Access";
+    public string RequiredScope { get; init; } = "user_impersonation";
 
     public string Authority => $"https://login.microsoftonline.com/{TenantId}/v2.0";
 }

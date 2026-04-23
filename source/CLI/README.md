@@ -14,7 +14,7 @@ Core commands:
 
 The CLI uses the signed-in Azure CLI user and requests the delegated PowerPack API scope:
 
-- `<application-id-uri>/PowerPack.Access`
+- `<application-id-uri>/user_impersonation`
 
 `resolve-deployment-graph` parses a source `missingdependencies.yml`, resolves the non-built-in package set through the API, and emits a generic deployment graph that downstream consumers can adapt to their own infrastructure tooling.
 

@@ -209,7 +209,7 @@ public sealed class ApiDownloadFlowTests
                 ApplicationIdUri = "api://powerpack.test",
                 TenantId = "test-tenant",
                 RequiredRole = "PowerPack.Access",
-                RequiredScope = "PowerPack.Access",
+                RequiredScope = "user_impersonation",
             },
             new StaticConfigurationManager(configuration)
         );

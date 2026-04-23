@@ -10,6 +10,7 @@ locals {
   function_app_name            = "${local.resource_name_prefix}-${random_string.function_app_suffix.result}"
   powerpack_api_display_name   = title(replace(local.resource_name_prefix, "-", " "))
   powerpack_api_app_role_name  = "PowerPack.Access"
+  powerpack_api_scope_name     = "user_impersonation"
   powerpack_api_identifier_uri = "api://${local.resource_name_prefix}"
   resolved_api_package_uri     = local.baked_api_package_uri
 }
@@ -60,7 +61,7 @@ resource "azuread_application" "api" {
       type                       = "User"
       user_consent_description   = "Call the PowerPack API as you."
       user_consent_display_name  = "Access PowerPack API"
-      value                      = local.powerpack_api_app_role_name
+      value                      = local.powerpack_api_scope_name
     }
   }
 
@@ -198,7 +199,7 @@ resource "azurerm_function_app_flex_consumption" "this" {
     "PowerPack__Auth__ApplicationIdUri"         = local.powerpack_api_identifier_uri
     "PowerPack__Auth__TenantId"                 = data.azurerm_client_config.current.tenant_id
     "PowerPack__Auth__RequiredRole"             = local.powerpack_api_app_role_name
-    "PowerPack__Auth__RequiredScope"            = local.powerpack_api_app_role_name
+    "PowerPack__Auth__RequiredScope"            = local.powerpack_api_scope_name
   }
 }
 

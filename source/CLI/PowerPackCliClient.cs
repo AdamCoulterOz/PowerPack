@@ -125,7 +125,7 @@ internal sealed class PowerPackCliClient
         string applicationIdUri,
         CancellationToken cancellationToken)
     {
-        var tokenScope = $"{applicationIdUri.TrimEnd('/')}/PowerPack.Access";
+        var tokenScope = $"{applicationIdUri.TrimEnd('/')}/user_impersonation";
         var credential = new AzureCliCredential();
         AccessToken accessToken;
         try

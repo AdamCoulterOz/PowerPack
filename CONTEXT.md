@@ -100,7 +100,7 @@ It owns:
 - PowerPack download token signing uses a Key Vault secret reference rather than a plain app setting.
 - Application Insights ingestion uses Entra authentication with `APPLICATIONINSIGHTS_AUTHENTICATION_STRING=Authorization=AAD`.
 - Function App Easy Auth is intentionally not used because its path-exclusion model does not fit the dynamic anonymous package download route.
-- The PowerPack API app registration exposes the same `PowerPack.Access` value as an app role and as a delegated OAuth scope so both automation principals and signed-in users can call protected endpoints.
+- The PowerPack API app registration exposes `PowerPack.Access` as an app role and `user_impersonation` as a delegated OAuth scope so both automation principals and signed-in users can call protected endpoints.
 
 ## Invariants
 
