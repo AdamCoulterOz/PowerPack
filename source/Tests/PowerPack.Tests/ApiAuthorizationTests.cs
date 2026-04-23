@@ -15,7 +15,16 @@ public sealed class ApiAuthorizationTests
     [Fact]
     public async Task AuthorizeAsync_Allows_Token_With_Required_Role()
     {
-        var service = CreateAuthorizationService("PowerPack.Access", out var token);
+        var service = CreateAuthorizationService([new Claim("roles", "PowerPack.Access")], out var token);
+        var request = CreateRequest(token);
+
+        await service.AuthorizeAsync(request, default);
+    }
+
+    [Fact]
+    public async Task AuthorizeAsync_Allows_User_Token_With_Required_Delegated_Scope()
+    {
+        var service = CreateAuthorizationService([new Claim("scp", "openid PowerPack.Access profile")], out var token);
         var request = CreateRequest(token);
 
         await service.AuthorizeAsync(request, default);
@@ -24,7 +33,7 @@ public sealed class ApiAuthorizationTests
     [Fact]
     public async Task AuthorizeAsync_Fails_Loudly_When_Bearer_Token_Is_Missing()
     {
-        var service = CreateAuthorizationService("PowerPack.Access", out _);
+        var service = CreateAuthorizationService([new Claim("roles", "PowerPack.Access")], out _);
         var request = new DefaultHttpContext().Request;
 
         var exception = await Assert.ThrowsAsync<PowerPackUnauthorizedException>(() => service.AuthorizeAsync(request, default));
@@ -35,12 +44,15 @@ public sealed class ApiAuthorizationTests
     [Fact]
     public async Task AuthorizeAsync_Fails_Loudly_When_Role_Is_Missing()
     {
-        var service = CreateAuthorizationService("Other.Role", out var token);
+        var service = CreateAuthorizationService([new Claim("roles", "Other.Role")], out var token);
         var request = CreateRequest(token);
 
         var exception = await Assert.ThrowsAsync<PowerPackUnauthorizedException>(() => service.AuthorizeAsync(request, default));
 
-        Assert.Equal("Bearer token is missing required role 'PowerPack.Access'.", exception.Message);
+        Assert.Equal(
+            "Bearer token is missing required role 'PowerPack.Access' or delegated scope 'PowerPack.Access'.",
+            exception.Message
+        );
     }
 
     private static HttpRequest CreateRequest(string token)
@@ -50,7 +62,7 @@ public sealed class ApiAuthorizationTests
         return request;
     }
 
-    private static PowerPackApiAuthorizationService CreateAuthorizationService(string role, out string token)
+    private static PowerPackApiAuthorizationService CreateAuthorizationService(IReadOnlyCollection<Claim> claims, out string token)
     {
         using var rsa = RSA.Create(2048);
         var signingKey = new RsaSecurityKey(rsa.ExportParameters(true));
@@ -63,10 +75,7 @@ public sealed class ApiAuthorizationTests
         token = new JwtSecurityTokenHandler().WriteToken(new JwtSecurityToken(
             issuer: configuration.Issuer,
             audience: "api://powerpack.test",
-            claims:
-            [
-                new Claim("roles", role),
-            ],
+            claims: claims,
             notBefore: DateTime.UtcNow.AddMinutes(-1),
             expires: DateTime.UtcNow.AddMinutes(30),
             signingCredentials: new SigningCredentials(signingKey, SecurityAlgorithms.RsaSha256)
@@ -79,6 +88,7 @@ public sealed class ApiAuthorizationTests
                 ApplicationIdUri = "api://powerpack.test",
                 TenantId = "test-tenant",
                 RequiredRole = "PowerPack.Access",
+                RequiredScope = "PowerPack.Access",
             },
             new StaticConfigurationManager(configuration)
         );

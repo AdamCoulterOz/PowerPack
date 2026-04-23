@@ -75,8 +75,19 @@ public sealed class PowerPackApiAuthorizationService
             .Select(claim => claim.Value)
             .ToArray();
 
-        if (!roles.Contains(_options.RequiredRole, StringComparer.Ordinal))
-            throw new PowerPackUnauthorizedException($"Bearer token is missing required role '{_options.RequiredRole}'.");
+        if (roles.Contains(_options.RequiredRole, StringComparer.Ordinal))
+            return;
+
+        var scopes = principal.FindAll("scp")
+            .SelectMany(claim => claim.Value.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            .ToArray();
+
+        if (scopes.Contains(_options.RequiredScope, StringComparer.Ordinal))
+            return;
+
+        throw new PowerPackUnauthorizedException(
+            $"Bearer token is missing required role '{_options.RequiredRole}' or delegated scope '{_options.RequiredScope}'."
+        );
     }
 
     private static bool TryGetBearerToken(HttpRequest request, out string token)

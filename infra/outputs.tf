@@ -46,6 +46,10 @@ output "app_role_id" {
   value = random_uuid.powerpack_api_app_role_id.result
 }
 
+output "delegated_scope" {
+  value = "${local.powerpack_api_identifier_uri}/${local.powerpack_api_app_role_name}"
+}
+
 output "application_insights_connection_string" {
   value     = azurerm_application_insights.this.connection_string
   sensitive = true

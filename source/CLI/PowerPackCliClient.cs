@@ -125,19 +125,20 @@ internal sealed class PowerPackCliClient
         string applicationIdUri,
         CancellationToken cancellationToken)
     {
+        var tokenScope = $"{applicationIdUri.TrimEnd('/')}/PowerPack.Access";
         var credential = new AzureCliCredential();
         AccessToken accessToken;
         try
         {
             accessToken = await credential.GetTokenAsync(
-                new TokenRequestContext([$"{applicationIdUri.TrimEnd('/')}/.default"]),
+                new TokenRequestContext([tokenScope]),
                 cancellationToken
             );
         }
         catch (Exception exception)
         {
             throw new CliException(
-                $"Failed to acquire an Azure CLI access token for '{applicationIdUri.TrimEnd('/')}/.default': {exception.Message}"
+                $"Failed to acquire an Azure CLI access token for '{tokenScope}': {exception.Message}"
             );
         }
 

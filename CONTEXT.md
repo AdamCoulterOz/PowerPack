@@ -43,7 +43,7 @@ It owns:
 - Release packaging now produces two paired artifacts: `released-package.zip` for the API and `module-<version>.zip` for the Terraform module with a baked reference to that API asset URL.
 - `test/` now owns reusable test fixtures, including the release-consumer Terraform fixture and .NET-generated Power Platform solution package fixtures.
 - Tests now cover resolver-generated tokenized download URLs and the anonymous package download flow.
-- API authorization now runs in the Function code so protected endpoints require Entra app-role tokens while package download remains publicly reachable with a signed query token.
+- API authorization now runs in the Function code so protected endpoints require Entra app-role tokens or delegated user-scope tokens while package download remains publicly reachable with a signed query token.
 - GitHub Actions now owns CI and tagged release packaging.
 - Contract definitions live in C# models and validators; there is no parallel JSON schema source of truth.
 - The default blocked Dataverse attachment extension list is checked into `source/Core/default-blocked-attachment-extensions.txt` and loaded by shared Core code.
@@ -100,6 +100,7 @@ It owns:
 - PowerPack download token signing uses a Key Vault secret reference rather than a plain app setting.
 - Application Insights ingestion uses Entra authentication with `APPLICATIONINSIGHTS_AUTHENTICATION_STRING=Authorization=AAD`.
 - Function App Easy Auth is intentionally not used because its path-exclusion model does not fit the dynamic anonymous package download route.
+- The PowerPack API app registration exposes the same `PowerPack.Access` value as an app role and as a delegated OAuth scope so both automation principals and signed-in users can call protected endpoints.
 
 ## Invariants
 

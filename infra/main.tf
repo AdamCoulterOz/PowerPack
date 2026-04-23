@@ -36,6 +36,8 @@ resource "random_string" "function_app_suffix" {
 
 resource "random_uuid" "powerpack_api_app_role_id" {}
 
+resource "random_uuid" "powerpack_api_scope_id" {}
+
 resource "random_password" "download_token_signing_key" {
   length  = 64
   special = false
@@ -49,10 +51,21 @@ resource "azuread_application" "api" {
 
   api {
     requested_access_token_version = 2
+
+    oauth2_permission_scope {
+      admin_consent_description  = "Call the PowerPack API as the signed-in user."
+      admin_consent_display_name = "Access PowerPack API"
+      enabled                    = true
+      id                         = random_uuid.powerpack_api_scope_id.result
+      type                       = "User"
+      user_consent_description   = "Call the PowerPack API as you."
+      user_consent_display_name  = "Access PowerPack API"
+      value                      = local.powerpack_api_app_role_name
+    }
   }
 
   app_role {
-    allowed_member_types = ["Application"]
+    allowed_member_types = ["Application", "User"]
     description          = "Call the PowerPack API."
     display_name         = "Access PowerPack API"
     enabled              = true
@@ -185,6 +198,7 @@ resource "azurerm_function_app_flex_consumption" "this" {
     "PowerPack__Auth__ApplicationIdUri"         = local.powerpack_api_identifier_uri
     "PowerPack__Auth__TenantId"                 = data.azurerm_client_config.current.tenant_id
     "PowerPack__Auth__RequiredRole"             = local.powerpack_api_app_role_name
+    "PowerPack__Auth__RequiredScope"            = local.powerpack_api_app_role_name
   }
 }
 

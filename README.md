@@ -154,7 +154,9 @@ Requests and responses are modeled and validated in C#.
 
 API authorization is split deliberately:
 
-- management and resolver endpoints require an Entra bearer token with the configured PowerPack app role
+- management and resolver endpoints require an Entra bearer token with either:
+  - the configured PowerPack app role for application principals
+  - the configured delegated PowerPack scope for signed-in users
 - `GET /api/packages/{name}/{version}/download` stays anonymous at the platform edge and is protected by the signed PowerPack download token instead
 - request authorization is enforced in the API code rather than Function App Easy Auth because the Flex Consumption `excludedPaths` model does not cleanly support this dynamic download route
 
@@ -269,6 +271,7 @@ GitHub Packages publish is handled by the release workflow.
   - `PowerPack__Auth__ApplicationIdUri`
   - `PowerPack__Auth__TenantId`
   - `PowerPack__Auth__RequiredRole`
+  - `PowerPack__Auth__RequiredScope`
 - Application Insights ingestion is configured with:
   - `APPLICATIONINSIGHTS_AUTHENTICATION_STRING=Authorization=AAD`
 - the Function App identity is granted:
