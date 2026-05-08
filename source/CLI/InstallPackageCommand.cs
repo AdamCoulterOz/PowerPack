@@ -94,12 +94,12 @@ internal sealed class InstallPackageCommand : AsyncCommand<InstallPackageCommand
         }
     }
 
-    public override async Task<int> ExecuteAsync(CommandContext context, Settings settings)
+    protected override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
     {
         try
         {
             var requestedVersion = SolutionVersion.Parse(settings.Version.Trim()).ToString();
-            var graph = await ResolveGraphAsync(settings.PackageName.Trim(), requestedVersion, settings, CancellationToken.None);
+            var graph = await ResolveGraphAsync(settings.PackageName.Trim(), requestedVersion, settings, cancellationToken);
             var installOrder = DependencyDeploymentOrder(graph);
 
             AnsiConsole.MarkupLine("[bold]PowerPack install plan[/]");
@@ -122,10 +122,10 @@ internal sealed class InstallPackageCommand : AsyncCommand<InstallPackageCommand
                 var packagePath = Path.Combine(downloadDirectory.FullName, SafeFileName($"{node.PackageTransportName}_{node.PackageTransportVersion}.zip"));
 
                 AnsiConsole.MarkupLine($"Downloading [green]{node.Name}[/] {node.Version}...");
-                await _client.DownloadPackageAsync(node.DownloadUrl, packagePath, CancellationToken.None);
+                await _client.DownloadPackageAsync(node.DownloadUrl, packagePath, cancellationToken);
 
                 AnsiConsole.MarkupLine($"Importing [green]{node.Name}[/] {node.Version}...");
-                await ImportSolutionAsync(settings, node, packagePath, CancellationToken.None);
+                await ImportSolutionAsync(settings, node, packagePath, cancellationToken);
             }
 
             AnsiConsole.MarkupLine("[green]PowerPack package install completed.[/]");

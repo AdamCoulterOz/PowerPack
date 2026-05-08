@@ -23,6 +23,9 @@ public sealed class SolutionManifest
     [JsonPropertyName("variables")]
     public JsonObject Variables { get; init; } = new();
 
+    [JsonPropertyName("flows")]
+    public IList<SolutionFlow> Flows { get; init; } = [];
+
     [JsonPropertyName("environment_requirements")]
     public SolutionEnvironmentRequirements EnvironmentRequirements { get; init; } = new();
 
@@ -30,6 +33,21 @@ public sealed class SolutionManifest
     public JsonObject? Metadata { get; init; }
 
     public SolutionVersion ParsedVersion => SolutionVersion.Parse(Version);
+}
+
+public sealed class SolutionFlow
+{
+    [JsonPropertyName("workflow_id")]
+    public required string WorkflowId { get; init; }
+
+    [JsonPropertyName("name")]
+    public required string Name { get; init; }
+
+    [JsonPropertyName("state_code")]
+    public required int StateCode { get; init; }
+
+    [JsonPropertyName("status_code")]
+    public required int StatusCode { get; init; }
 }
 
 public sealed class SolutionReference

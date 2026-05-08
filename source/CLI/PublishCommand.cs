@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Text.Json;
+using Azure.Identity;
 using Spectre.Console;
 using Spectre.Console.Cli;
 
@@ -27,9 +28,9 @@ internal sealed class PublishCommand : AsyncCommand<PublishCommand.Settings>
         [Description("Package quality tag: local, prerelease, or release.")]
         public required string Quality { get; init; }
 
-        [CommandOption("--power-platform-environment-id <ID>")]
-        [Description("Power Platform environment id used for connector metadata enrichment when required.")]
-        public string? PowerPlatformEnvironmentId { get; init; }
+        [CommandOption("--environment-url <URL>")]
+        [Description("Dataverse environment URL used to resolve the Power Platform environment id for connector metadata enrichment.")]
+        public required string EnvironmentUrl { get; init; }
 
         public override ValidationResult Validate()
         {
@@ -45,21 +46,33 @@ internal sealed class PublishCommand : AsyncCommand<PublishCommand.Settings>
             if (string.IsNullOrWhiteSpace(Quality))
                 return ValidationResult.Error("--quality is required.");
 
+            if (string.IsNullOrWhiteSpace(EnvironmentUrl))
+                return ValidationResult.Error("--environment-url is required.");
+
             return ValidationResult.Success();
         }
     }
 
-    public override async Task<int> ExecuteAsync(CommandContext context, Settings settings)
+    protected override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
     {
         try
         {
+            var environmentUrl = BuildManifestCommand.NormalizeEnvironmentUrl(settings.EnvironmentUrl);
+            using var httpClient = new HttpClient();
+            var powerPlatformEnvironmentId = await BuildManifestCommand.ResolvePowerPlatformEnvironmentIdAsync(
+                httpClient,
+                new AzureCliCredential(),
+                environmentUrl,
+                cancellationToken
+            );
+
             var payload = await _client.PublishAsync(
                 settings.ApiBaseUrl,
                 settings.ApplicationIdUri,
                 settings.PackagePath,
                 settings.Quality,
-                settings.PowerPlatformEnvironmentId,
-                CancellationToken.None
+                powerPlatformEnvironmentId,
+                cancellationToken
             );
             Console.Out.WriteLine(payload.ToJsonString(new JsonSerializerOptions(JsonSerializerDefaults.Web)
             {

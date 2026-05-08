@@ -23,6 +23,8 @@ Everything else is metadata attached to a solution version:
 - `publisher`
 - `connections`
 - `variables`
+- `flows`
+- `environment_requirements`
 - `metadata`
 
 Packages, artifact feeds, anchors, marker solutions, and deployment scripts are transport concerns. They are not the dependency model.
@@ -42,6 +44,19 @@ Each indexed solution version is represented by a manifest with this shape:
   },
   "connections": {},
   "variables": {},
+  "flows": [
+    {
+      "workflow_id": "11111111-1111-1111-1111-111111111111",
+      "name": "Activate Experience Assignments",
+      "state_code": 1,
+      "status_code": 2
+    }
+  ],
+  "environment_requirements": {
+    "dataverse": {
+      "allowed_attachment_extensions": []
+    }
+  },
   "metadata": {}
 }
 ```
@@ -54,6 +69,8 @@ Each indexed solution version is represented by a manifest with this shape:
 - dependency names are case-invariant for comparison
 - case-only dependency collisions are rejected
 - dependency versions are normalized to four numeric parts
+- flow workflow ids are normalized GUIDs
+- duplicate flow workflow ids with conflicting names are rejected
 
 Examples:
 
@@ -92,7 +109,7 @@ It declares:
 
 - solution identity
 - dependency intent
-- deployment-facing metadata such as connection and variable requirements
+- deployment-facing metadata such as connection references, environment variables, source-active flows, and environment requirements
 
 ### 2. Index
 
@@ -146,6 +163,8 @@ Stored values include:
 - serialized connections JSON
 - serialized variables JSON
 - serialized metadata JSON
+
+`ManifestJson` is the source of truth for the full manifest contract, including `flows` and `environment_requirements`. The additional serialized columns are query/projection conveniences, not independent contracts.
 
 ### `dependencyindex`
 

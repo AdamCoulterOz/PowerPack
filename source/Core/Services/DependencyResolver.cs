@@ -8,7 +8,7 @@ public sealed class DependencyResolver(IManifestIndexStore store)
     private readonly IManifestIndexStore _store = store;
     private readonly BuiltInSolutionRegistry _builtInSolutions = BuiltInSolutionRegistry.Default;
 
-	public Task<ResolutionResult> ResolveAsync(SolutionReference solution, CancellationToken cancellationToken) =>
+    public Task<ResolutionResult> ResolveAsync(SolutionReference solution, CancellationToken cancellationToken) =>
         ResolveSetAsync(new ResolveSetRequest { Solutions = [solution] }, cancellationToken);
 
     public async Task<ResolutionResult> ResolveSetAsync(ResolveSetRequest request, CancellationToken cancellationToken)

@@ -76,6 +76,40 @@ public static class SolutionPackageFixtureWriter
                             new XElement("description", connection.Description)
                         )
                     )
+                ),
+                new XElement("Workflows",
+                    (fixture.Flows ?? []).Select(flow =>
+                        new XElement("Workflow",
+                            new XAttribute("WorkflowId", flow.WorkflowId),
+                            new XAttribute("Name", flow.Name),
+                            new XElement("JsonFileName", $"/modernflows/{flow.WorkflowId.Trim('{', '}')}/{flow.Name.Replace(" ", string.Empty, StringComparison.Ordinal)}.json"),
+                            new XElement("Type", 1),
+                            new XElement("Subprocess", 0),
+                            new XElement("Category", flow.Category),
+                            new XElement("Mode", 0),
+                            new XElement("Scope", 4),
+                            new XElement("OnDemand", 0),
+                            new XElement("TriggerOnCreate", 0),
+                            new XElement("TriggerOnDelete", 0),
+                            new XElement("AsyncAutodelete", 0),
+                            new XElement("SyncWorkflowLogOnFailure", 0),
+                            new XElement("StateCode", flow.StateCode),
+                            new XElement("StatusCode", flow.StatusCode),
+                            new XElement("RunAs", 1),
+                            new XElement("IsTransacted", 1),
+                            new XElement("IntroducedVersion", fixture.Version),
+                            new XElement("IsCustomizable", 1),
+                            new XElement("IsCustomProcessingStepAllowedForOtherPublishers", 1),
+                            new XElement("ModernFlowType", 0),
+                            new XElement("PrimaryEntity", "none"),
+                            new XElement("LocalizedNames",
+                                new XElement("LocalizedName",
+                                    new XAttribute("languagecode", 1033),
+                                    new XAttribute("description", flow.Name)
+                                )
+                            )
+                        )
+                    )
                 )
             )
         );

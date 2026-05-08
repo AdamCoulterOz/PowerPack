@@ -42,7 +42,7 @@ internal sealed class ResolveSetCommand : AsyncCommand<ResolveSetCommand.Setting
         }
     }
 
-    public override async Task<int> ExecuteAsync(CommandContext context, Settings settings)
+    protected override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
     {
         try
         {
@@ -50,7 +50,7 @@ internal sealed class ResolveSetCommand : AsyncCommand<ResolveSetCommand.Setting
                 settings.ApiBaseUrl,
                 settings.ApplicationIdUri,
                 settings.RequestPath,
-                CancellationToken.None
+                cancellationToken
             );
 
             var json = payload.ToJsonString(new JsonSerializerOptions(JsonSerializerDefaults.Web)

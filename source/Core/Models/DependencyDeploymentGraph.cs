@@ -56,8 +56,26 @@ public sealed class DependencyDeploymentNode
     [JsonPropertyName("environment_variables")]
     public IDictionary<string, DeploymentEnvironmentVariable> EnvironmentVariables { get; init; } = new Dictionary<string, DeploymentEnvironmentVariable>(StringComparer.Ordinal);
 
+    [JsonPropertyName("flows")]
+    public IList<DeploymentFlow> Flows { get; init; } = [];
+
     [JsonPropertyName("environment_requirements")]
     public SolutionEnvironmentRequirements EnvironmentRequirements { get; init; } = new();
+}
+
+public sealed class DeploymentFlow
+{
+    [JsonPropertyName("workflow_id")]
+    public required string WorkflowId { get; init; }
+
+    [JsonPropertyName("name")]
+    public required string Name { get; init; }
+
+    [JsonPropertyName("state_code")]
+    public required int StateCode { get; init; }
+
+    [JsonPropertyName("status_code")]
+    public required int StatusCode { get; init; }
 }
 
 public sealed class DeploymentIdentity

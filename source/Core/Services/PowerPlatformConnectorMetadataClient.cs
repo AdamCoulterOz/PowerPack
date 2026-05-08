@@ -3,7 +3,7 @@ using System.Text.Json.Nodes;
 using Azure.Core;
 using PowerPack.Models;
 
-namespace PowerPack.Services; 
+namespace PowerPack.Services;
 
 public sealed class PowerPlatformConnectorMetadataClient(HttpClient httpClient, TokenCredential credential)
 {

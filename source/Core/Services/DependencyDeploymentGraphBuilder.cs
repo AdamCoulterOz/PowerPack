@@ -96,6 +96,7 @@ public sealed class DependencyDeploymentGraphBuilder
                 Identities = projectedManifest.Identities,
                 ConnectionReferences = projectedManifest.ConnectionReferences,
                 EnvironmentVariables = projectedManifest.EnvironmentVariables,
+                Flows = projectedManifest.Flows,
                 EnvironmentRequirements = projectedManifest.EnvironmentRequirements,
             };
         }
@@ -350,6 +351,18 @@ public sealed class DependencyDeploymentGraphBuilder
             },
         };
 
+        var flows = manifest.Flows
+            .Select((flow, index) => new DeploymentFlow
+            {
+                WorkflowId = RequireGuid(flow.WorkflowId, $"{packageName}.flows[{index}].workflow_id"),
+                Name = RequireNonEmpty(flow.Name, $"{packageName}.flows[{index}].name"),
+                StateCode = flow.StateCode,
+                StatusCode = flow.StatusCode,
+            })
+            .OrderBy(flow => flow.Name, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(flow => flow.WorkflowId, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
         return new ProjectedManifest
         {
             Name = packageName,
@@ -360,6 +373,7 @@ public sealed class DependencyDeploymentGraphBuilder
             Identities = identities,
             ConnectionReferences = connectionReferences,
             EnvironmentVariables = environmentVariables,
+            Flows = flows,
             EnvironmentRequirements = environmentRequirements,
         };
     }
@@ -459,6 +473,13 @@ public sealed class DependencyDeploymentGraphBuilder
         return value.Trim();
     }
 
+    private static string RequireGuid(string? value, string path)
+    {
+        if (!Guid.TryParse(value?.Trim().Trim('{', '}'), out var guid))
+            throw new PowerPackValidationException($"{path} must be a GUID.");
+        return guid.ToString();
+    }
+
     private sealed class ProjectedManifest
     {
         public required string Name { get; init; }
@@ -476,6 +497,8 @@ public sealed class DependencyDeploymentGraphBuilder
         public IDictionary<string, DeploymentConnectionReference> ConnectionReferences { get; init; } = new Dictionary<string, DeploymentConnectionReference>(StringComparer.Ordinal);
 
         public IDictionary<string, DeploymentEnvironmentVariable> EnvironmentVariables { get; init; } = new Dictionary<string, DeploymentEnvironmentVariable>(StringComparer.Ordinal);
+
+        public IList<DeploymentFlow> Flows { get; init; } = [];
 
         public SolutionEnvironmentRequirements EnvironmentRequirements { get; init; } = new();
     }

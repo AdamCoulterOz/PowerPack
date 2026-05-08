@@ -73,6 +73,10 @@ public static class FixtureCatalog
                     - approvals/delegated/Approval.ReadWrite.All
                     """
                 ),
+            ],
+            [
+                new("{11111111-1111-1111-1111-111111111111}", "Activate Experience Assignments"),
+                new("{22222222-2222-2222-2222-222222222222}", "Draft Experience Flow", StateCode: 0, StatusCode: 1),
             ]
         ),
         new(

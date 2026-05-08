@@ -131,6 +131,16 @@ MissingDependencies:
         Assert.Equal("json", environmentVariable.Type);
         Assert.Equal("{\"enabled\":true}", environmentVariable.StringValue);
 
+        Assert.Collection(
+            coreNode.Flows,
+            flow =>
+            {
+                Assert.Equal("11111111-1111-1111-1111-111111111111", flow.WorkflowId);
+                Assert.Equal("Sync Contact", flow.Name);
+                Assert.Equal(1, flow.StateCode);
+                Assert.Equal(2, flow.StatusCode);
+            });
+
         Assert.Contains("js", graph.EnvironmentRequirements.Dataverse.DefaultBlockedAttachmentExtensions);
         Assert.Equal(["js"], graph.EnvironmentRequirements.Dataverse.RequiredAllowedAttachmentExtensions);
         Assert.DoesNotContain("js", graph.EnvironmentRequirements.Dataverse.BlockedAttachmentExtensions);
@@ -203,6 +213,16 @@ MissingDependencies:
                     AllowedAttachmentExtensions = ["js"],
                 },
             },
+            Flows =
+            [
+                new SolutionFlow
+                {
+                    WorkflowId = "11111111-1111-1111-1111-111111111111",
+                    Name = "Sync Contact",
+                    StateCode = 1,
+                    StatusCode = 2,
+                },
+            ],
             Connections = new JsonObject
             {
                 ["shared_graph"] = new JsonObject

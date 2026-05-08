@@ -58,6 +58,16 @@ public sealed class SolutionPackageFixtureTests
         Assert.Equal("/providers/Microsoft.PowerApps/apis/shared_approvals", connection["type"]?.GetValue<string>());
         Assert.Equal("user", connection["auth"]?.GetValue<string>());
         Assert.Equal("Approval workflow connection for experience orchestration.", connection["description"]?.GetValue<string>());
+
+        Assert.Collection(
+            manifest.Flows,
+            flow =>
+            {
+                Assert.Equal("11111111-1111-1111-1111-111111111111", flow.WorkflowId);
+                Assert.Equal("Activate Experience Assignments", flow.Name);
+                Assert.Equal(1, flow.StateCode);
+                Assert.Equal(2, flow.StatusCode);
+            });
     }
 
     [Fact]

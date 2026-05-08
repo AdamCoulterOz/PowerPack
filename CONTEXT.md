@@ -1,6 +1,6 @@
 # Context
 
-_Last updated: 2026-04-23_
+_Last updated: 2026-05-08_
 
 ## Purpose
 
@@ -21,6 +21,9 @@ It owns:
 - The resolver now suppresses built-in platform solutions using the checked-in built-in registry for both direct roots and transitive dependencies, so indexed package manifests can safely reference Microsoft-managed solutions without requiring package records for them.
 - The shared manifest builder accepts both the newer `Other/Customizations.xml` layout and the older flat `customizations.xml` layout used by legacy managed solution exports.
 - The shared manifest builder now correctly parses connection parameter keys that themselves contain colons, such as `token:clientId`, `token:clientSecret`, and `token:TenantId`.
+- The shared manifest builder emits source-active modern flows from packaged `Workflow` components as `flows`.
+  - only `Category: 5`, `StateCode: 1`, `StatusCode: 2` workflows are included
+  - draft and inactive flows stay out of the activation contract
 - The shared manifest builder now also infers Dataverse attachment-policy requirements from packaged solution contents.
   - explicit packaged files with blocked extensions, such as `*.js`, are detected directly from the archive
   - classic Dataverse web resources are also inspected through `customizations.xml` so a `WebResourceType` of script still produces an attachment-policy requirement even when the packaged payload path has no filename extension
@@ -28,11 +31,16 @@ It owns:
 - The source layout is split into `source/Core/`, `source/API/`, `source/CLI/`, and `source/Tests/`.
 - The CLI is a .NET tool with package id `PowerPack.Cli` and command `powerpack`.
 - The CLI uses the same shared C# manifest-building code as the API through the `Core` project.
+- The CLI `build-manifest` command can either inspect a package zip or export an unmanaged solution from Dataverse before inspection.
+  - `--package <zip>` preserves the package-based workflow
+  - `--solution <unique-name>` requires `--environment-url` and exports through Dataverse `ExportSolution`
+  - `--environment-url` is required and the CLI resolves the Power Platform environment id internally
 - The CLI now also owns `missingdependencies.yml` parsing and emits a generic deployment graph with:
   - `roots`
   - `topological_order`
   - `nodes`
   - package identities, connection references, environment variables, and download URLs per node
+  - source-active flows per node
   - graph-level environment requirements, including the reconciled Dataverse blocked attachment extension list
 - The CLI can install a PowerPack package and its package-managed dependencies directly into a Dataverse environment with `powerpack install-package`.
   - it resolves the requested root package through the PowerPack API
@@ -87,8 +95,10 @@ It owns:
 - PowerPack is both the dependency index and the package registry.
 - Blob access is never exposed directly to consumers; downloads go through signed PowerPack API URLs.
 - Manifest generation logic lives in shared C# code that is consumed by both the API and CLI.
+- CLI callers pass a Dataverse environment URL, not a Power Platform environment id; environment-id lookup is an implementation detail.
 - Dependency-root inference and deployment-graph construction also live in shared C# code so downstream tooling does not re-implement PowerPack policy in another language.
 - Deployment-graph generation is also responsible for reconciling package-driven environment requirements, including Dataverse attachment-extension policy, so downstream consumers only apply resolved target state.
+- Source-active dependency flows are a PowerPack manifest and graph concern; downstream deployment pipelines should consume `flows` from the graph instead of manually listing dependency workflow ids where possible.
 - Direct CLI installation is an operator path for installing package zips and dependencies; it deliberately does not provision Dataverse environments, service identities, or connector instances.
 - The CLI and API may authenticate differently, but they must use the same domain logic.
 - Delivery automation is GitHub-native through GitHub Actions workflows in `.github/workflows/`.
@@ -108,6 +118,7 @@ It owns:
 - Solution names are compared case-insensitively and preserved case-sensitively.
 - Managed solution package ingestion must accept both modern and legacy customization entry locations.
 - Description-block connection parameter keys may contain embedded colons and must be parsed without truncating the key name.
+- Manifest `flows` contains only source-active modern flows and must not silently include draft or inactive workflows.
 - Package blob tags are:
   - `Package`
   - `Version`

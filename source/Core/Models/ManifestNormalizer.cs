@@ -27,6 +27,35 @@ public static class ManifestNormalizer
             dependencies[dependencyName] = SolutionVersion.Parse(entry.Value).ToString();
         }
 
+        var flows = manifest.Flows
+            .Select(flow => new SolutionFlow
+            {
+                WorkflowId = NormalizeGuid(flow.WorkflowId, $"Manifest '{name}' version '{version}' declares an invalid flow workflow id."),
+                Name = RequireNonEmpty(flow.Name, $"Manifest '{name}' version '{version}' declares a flow with an empty name."),
+                StateCode = flow.StateCode,
+                StatusCode = flow.StatusCode,
+            })
+            .GroupBy(flow => flow.WorkflowId, StringComparer.OrdinalIgnoreCase)
+            .Select(group =>
+            {
+                var distinctNames = group
+                    .Select(flow => flow.Name)
+                    .Distinct(StringComparer.Ordinal)
+                    .ToList();
+                if (distinctNames.Count > 1)
+                {
+                    throw new PowerPackValidationException(
+                        $"Manifest '{name}' version '{version}' declares workflow id '{group.Key}' with multiple names: " +
+                        string.Join(", ", distinctNames.OrderBy(value => value, StringComparer.Ordinal))
+                    );
+                }
+
+                return group.First();
+            })
+            .OrderBy(flow => flow.Name, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(flow => flow.WorkflowId, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
         return new SolutionManifest
         {
             Name = name,
@@ -35,6 +64,7 @@ public static class ManifestNormalizer
             Dependencies = dependencies,
             Connections = manifest.Connections.DeepClone().AsObject(),
             Variables = manifest.Variables.DeepClone().AsObject(),
+            Flows = flows,
             EnvironmentRequirements = new SolutionEnvironmentRequirements
             {
                 Dataverse = new DataverseSolutionEnvironmentRequirements
@@ -52,5 +82,12 @@ public static class ManifestNormalizer
         if (string.IsNullOrWhiteSpace(value))
             throw new PowerPackValidationException(error);
         return value.Trim();
+    }
+
+    private static string NormalizeGuid(string? value, string error)
+    {
+        if (!Guid.TryParse(value?.Trim().Trim('{', '}'), out var guid))
+            throw new PowerPackValidationException(error);
+        return guid.ToString();
     }
 }

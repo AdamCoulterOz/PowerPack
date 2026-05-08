@@ -51,7 +51,7 @@ internal sealed class ResolveDeploymentGraphCommand : AsyncCommand<ResolveDeploy
         }
     }
 
-    public override async Task<int> ExecuteAsync(CommandContext context, Settings settings)
+    protected override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
     {
         try
         {
@@ -59,7 +59,7 @@ internal sealed class ResolveDeploymentGraphCommand : AsyncCommand<ResolveDeploy
             if (!missingDependenciesFile.Exists)
                 throw new CliException($"MissingDependencies file was not found: {missingDependenciesFile.FullName}");
 
-            var content = await File.ReadAllTextAsync(missingDependenciesFile.FullName);
+            var content = await File.ReadAllTextAsync(missingDependenciesFile.FullName, cancellationToken);
             var roots = _parser.Parse(content, missingDependenciesFile.FullName);
             var resolution = await _client.ResolveSetResultAsync(
                 settings.ApiBaseUrl,
@@ -68,7 +68,7 @@ internal sealed class ResolveDeploymentGraphCommand : AsyncCommand<ResolveDeploy
                 {
                     Solutions = roots,
                 },
-                CancellationToken.None);
+                cancellationToken);
 
             var graph = _graphBuilder.Build(
                 resolution,

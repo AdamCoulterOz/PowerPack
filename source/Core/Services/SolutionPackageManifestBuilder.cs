@@ -79,6 +79,7 @@ public sealed class SolutionPackageManifestBuilder(PowerPlatformConnectorMetadat
             cancellationToken
         );
         var variables = ExtractVariables(customizationsDocument, customizationsXmlPath);
+        var flows = ExtractFlows(customizationsDocument, customizationsXmlPath);
         var environmentRequirements = ExtractEnvironmentRequirements(archive, customizationsDocument);
 
         return ManifestNormalizer.Normalize(new SolutionManifest
@@ -89,6 +90,7 @@ public sealed class SolutionPackageManifestBuilder(PowerPlatformConnectorMetadat
             Dependencies = dependencies,
             Connections = connections,
             Variables = variables,
+            Flows = flows,
             EnvironmentRequirements = environmentRequirements,
             Metadata = new JsonObject
             {
@@ -318,6 +320,62 @@ public sealed class SolutionPackageManifestBuilder(PowerPlatformConnectorMetadat
         }
 
         return variables;
+    }
+
+    private static IList<SolutionFlow> ExtractFlows(
+        XDocument customizationsDocument,
+        string customizationsXmlPath)
+    {
+        var flows = new List<SolutionFlow>();
+
+        foreach (var workflowNode in customizationsDocument.Descendants().Where(node => LocalName(node) == "Workflow"))
+        {
+            var fields = workflowNode.Elements().ToDictionary(
+                child => LocalName(child),
+                child => (child.Value ?? string.Empty).Trim(),
+                StringComparer.OrdinalIgnoreCase
+            );
+
+            if (ValueOrDefault(workflowNode, fields, "Category") != "5")
+                continue;
+
+            var stateCode = ParseInt(
+                ValueOrDefault(workflowNode, fields, "StateCode"),
+                $"{customizationsXmlPath}.[workflow].StateCode"
+            );
+            var statusCode = ParseInt(
+                ValueOrDefault(workflowNode, fields, "StatusCode"),
+                $"{customizationsXmlPath}.[workflow].StatusCode"
+            );
+
+            if (stateCode != 1 || statusCode != 2)
+                continue;
+
+            var workflowId = ValueOrDefault(workflowNode, fields, "WorkflowId");
+            if (!Guid.TryParse(workflowId.Trim('{', '}'), out var workflowGuid))
+                throw new PowerPackValidationException(
+                    $"{customizationsXmlPath} contains an active modern flow with an invalid WorkflowId."
+                );
+
+            var name = ValueOrDefault(workflowNode, fields, "Name");
+            if (string.IsNullOrWhiteSpace(name))
+                throw new PowerPackValidationException(
+                    $"{customizationsXmlPath} contains active modern flow '{workflowId}' without a Name."
+                );
+
+            flows.Add(new SolutionFlow
+            {
+                WorkflowId = workflowGuid.ToString(),
+                Name = name,
+                StateCode = stateCode,
+                StatusCode = statusCode,
+            });
+        }
+
+        return flows
+            .OrderBy(flow => flow.Name, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(flow => flow.WorkflowId, StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     private static Dictionary<string, string> ExtractDependencies(XDocument solutionDocument, string currentUniqueName)
@@ -850,6 +908,11 @@ public sealed class SolutionPackageManifestBuilder(PowerPlatformConnectorMetadat
         ((element.Attribute(key)?.Value ?? string.Empty).Trim() is { Length: > 0 } attributeValue)
             ? attributeValue
             : fields.GetValueOrDefault(key, string.Empty).Trim();
+
+    private static int ParseInt(string value, string path) =>
+        int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
+            ? parsed
+            : throw new PowerPackValidationException($"{path} must be an integer.");
 
     private static XDocument ParseXml(string xml, string path)
     {

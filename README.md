@@ -27,7 +27,7 @@ Documentation examples use these neutral sample solution names consistently:
 PowerPack is split into three layers:
 
 1. `manifest`
-   - a solution manifest declares the solution name, version, publisher, and direct dependencies
+   - a solution manifest declares the solution name, version, publisher, direct dependencies, connection references, environment variables, source-active flows, and environment requirements
 2. `index`
    - Azure Table Storage holds:
      - `solutionindex`
@@ -178,7 +178,7 @@ Manifest publish now uploads the managed solution zip directly to PowerPack.
 
 That lets callers project the full deployment contract without issuing follow-up manifest lookups or any extra package-download sidecar.
 
-The CLI also provides `powerpack resolve-deployment-graph`, which parses a source `missingdependencies.yml`, calls `resolve-set`, and emits a generic deployment graph with roots, topological order, per-package deployment metadata, identities, connection references, and environment variables.
+The CLI also provides `powerpack resolve-deployment-graph`, which parses a source `missingdependencies.yml`, calls `resolve-set`, and emits a generic deployment graph with roots, topological order, per-package deployment metadata, identities, connection references, environment variables, source-active flows, and environment requirements.
 
 The CLI also provides `powerpack install-package`, an operator command for directly installing one PowerPack package and its package-managed dependencies into a Dataverse environment without generating Terraform. It resolves the requested package through the API, downloads every resolved package, computes dependency-first install order, and imports the packages with `pac solution import`. Optional per-package PAC deployment settings can be supplied with `--settings-directory`.
 
@@ -222,6 +222,15 @@ This repo uses GitHub Actions instead of Azure DevOps.
   - `Azure.Identity` with Azure CLI token acquisition
 
 The CLI shares PowerPack contracts with the API and is intended to be installed by the shared Dataverse pipeline as a NuGet tool.
+
+`build-manifest` can inspect a managed solution zip or export an unmanaged solution from Dataverse before inspection:
+
+```bash
+powerpack build-manifest --environment-url https://example.crm.dynamics.com --package solution.zip
+powerpack build-manifest --environment-url https://example.crm.dynamics.com --solution SolutionUniqueName
+```
+
+`build-manifest` and `publish` take `--environment-url` and resolve the Power Platform environment id internally when connector metadata enrichment needs environment context.
 
 GitHub Packages publish is handled by the release workflow.
 
