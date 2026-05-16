@@ -62,6 +62,7 @@ Important:
 
 - the module derives its internal resource names from `name_prefix`
 - the storage account and function app names are generated to remain globally unique
+- callers can override selected resource names when they need deterministic or brownfield-compatible names
 - released module artifacts bake in the matching API release asset URL so the module is self-contained
 - source-tree module files are not the deployment artifact; the packaged release module is
 - the module does not configure Flex Consumption always-ready instances, so the app remains eligible to scale to zero when idle
@@ -237,7 +238,8 @@ The CLI shares PowerPack contracts with the API and is intended to be installed 
   - `DataverseSolutionClient`
     - normalizes Dataverse environment URLs
     - resolves Power Platform environment ids from Dataverse URLs
-    - exports solutions through Dataverse `ExportSolution`
+    - sets online solution versions and verifies the resulting `solution.version`
+    - exports solutions through Dataverse `ExportSolution` or `ExportSolutionAsync`
     - imports solutions through Dataverse `ImportSolutionAsync`
     - waits on Dataverse async operations and can publish all changes after import
   - `DependencyDeploymentPlanner.GetDependencyFirstOrder`

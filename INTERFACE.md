@@ -24,7 +24,7 @@ PowerPack currently owns:
 - producing signed package download URLs
 - projecting resolved packages into a deployment graph for downstream tooling
 - exposing built-in Power Platform solution knowledge to downstream code
-- exposing package publish, resolve, download, Dataverse export, and Dataverse import primitives as library APIs
+- exposing package publish, resolve, download, Dataverse environment-id lookup, solution version update, export, and import primitives as library APIs
 - deploying its own registry API and storage through a reusable Terraform module
 
 PowerPack may later own:
@@ -49,6 +49,7 @@ PowerPack should not own:
 - A package is the managed solution zip stored behind a manifest.
 - A resolution result selects package versions that satisfy one or more roots.
 - A deployment graph projects resolved manifests into dependency-first package nodes with deployment metadata.
+- A Dataverse solution operation is an authenticated Web API action against a caller-supplied Dataverse environment URL.
 
 ## Public Interfaces
 
@@ -96,6 +97,9 @@ The `PowerPack.Core` package exposes these stable consumer APIs:
 - The anonymous package download route is authorized by the signed PowerPack token, not Easy Auth.
 - Source-active modern flows are represented as manifest and deployment graph metadata when they are present in the package.
 - Draft or inactive modern flows are not included in the activation contract.
+- CLI callers supply Dataverse environment URLs; Power Platform environment id lookup is an implementation detail.
+- Core Dataverse solution operations use caller-provided `TokenCredential` and do not own credential policy.
+- Core Dataverse solution operations fail loudly on invalid packages, unresolved dependencies, invalid Dataverse responses, missing package metadata, failed Dataverse operations, or post-update version verification drift.
 
 ## Side Effects
 
@@ -107,6 +111,7 @@ The `PowerPack.Core` package exposes these stable consumer APIs:
 - `powerpack build-manifest --solution` exports an unmanaged solution from Dataverse before manifest inspection.
 - `powerpack build-manifest` and `powerpack publish` resolve the Power Platform environment id from a Dataverse environment URL.
 - `powerpack install-package` downloads packages and imports them through Dataverse Web API solution actions.
+- Core Dataverse solution operations can read Dataverse organization metadata, update `solution.version`, start solution export/import jobs, poll `asyncoperation`, download exported solution zip payloads, and publish all XML after import when requested.
 - The Terraform module provisions Azure infrastructure, grants storage and Key Vault RBAC roles, and applies the Function App package through OneDeploy.
 
 ## Dependency Boundaries
@@ -114,6 +119,7 @@ The `PowerPack.Core` package exposes these stable consumer APIs:
 Trusted upstream contracts:
 
 - Dataverse managed solution zip structure
+- Dataverse Web API solution actions
 - Microsoft connector metadata endpoints
 - Entra token validation metadata
 - Azure Storage data-plane APIs
@@ -132,6 +138,7 @@ Downstream consumers should not depend on:
 - Azure Table Storage entity shapes
 - internal C# service types outside the public model contract
 - PAC CLI as a runtime dependency or durable integration boundary
+- Azure DevOps Power Platform Build Tools as a runtime dependency or durable integration boundary
 - release workflow implementation details
 - organisation-specific pipelines
 
@@ -142,7 +149,7 @@ Downstream consumers should not depend on:
 - Dependency resolution is request-scoped and deterministic.
 - Package publish is an authenticated mutation that writes both manifest state and package blob state.
 - Package download is anonymous at the Function route level and requires a valid signed PowerPack download token.
-- Dataverse solution export/import library operations call Dataverse Web API actions directly.
+- Dataverse solution export/import/version library operations call Dataverse Web API actions directly.
 - Terraform deploys durable infrastructure and applies the API package through the OneDeploy extension.
 
 ## Anti-Goals
@@ -160,4 +167,4 @@ Downstream consumers should not depend on:
 - Update this file when changing public routes, model shapes, deployment graph semantics, Terraform variables or outputs, side effects, or lifecycle boundaries.
 - Keep organisation-specific pipeline behavior out of this primary repo.
 - Prefer additive CLI changes over breaking option changes unless the user explicitly chooses a contract break.
-- Add focused tests for resolver, manifest, graph, and tokenized download behavior when the contract changes.
+- Add focused tests for resolver, manifest, graph, Dataverse client, and tokenized download behavior when the contract changes.

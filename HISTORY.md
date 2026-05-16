@@ -18,6 +18,12 @@ The CLI moved to `--environment-url` as the public environment context for manif
 
 The older `--power-platform-environment-id` option was removed from the CLI surface. This is an intentional breaking change so callers use the stable Dataverse environment URL rather than passing an internal Power Platform environment id. The new `--solution` manifest source exports the unmanaged solution directly from Dataverse before inspection.
 
+## 2026-05-16: Dataverse Solution Operations In Core
+
+Core now owns direct Dataverse solution operation primitives so downstream deployment tooling can set solution versions, export solution zips, import solution zips, and wait on Dataverse async operations without depending on PAC CLI or Azure DevOps Power Platform Build Tools tasks.
+
+The Core service keeps credential ownership with the caller through `TokenCredential`, while PowerPack owns the Dataverse operation mechanics needed by package publication and deployment workflows.
+
 ## 2026-05-16: Stable Core Library Boundary For CrmProxy
 
 `PowerPack.Core` now publishes the reusable library boundary for CrmProxy-style consumers. Built-in Power Platform solution knowledge, PowerPack API package publish/resolve/download primitives, Dataverse solution export/import primitives, and dependency-first deployment planning are exposed as Core APIs.

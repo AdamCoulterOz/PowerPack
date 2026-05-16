@@ -18,6 +18,36 @@ variable "resource_group_name" {
   default = null
 }
 
+variable "storage_account_name" {
+  type    = string
+  default = null
+}
+
+variable "service_plan_name" {
+  type    = string
+  default = null
+}
+
+variable "application_insights_name" {
+  type    = string
+  default = null
+}
+
+variable "function_app_name" {
+  type    = string
+  default = null
+}
+
+variable "powerpack_api_display_name" {
+  type    = string
+  default = null
+}
+
+variable "powerpack_api_identifier_uri" {
+  type    = string
+  default = null
+}
+
 variable "maximum_instance_count" {
   type    = number
   default = 1

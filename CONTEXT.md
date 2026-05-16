@@ -31,6 +31,11 @@ It owns:
 - The source layout is split into `source/Core/`, `source/API/`, `source/CLI/`, and `source/Tests/`.
 - The CLI is a .NET tool with package id `PowerPack.Cli` and command `powerpack`.
 - The CLI uses the same shared C# manifest-building code as the API through the `Core` project.
+- Core owns direct Dataverse solution operations used by downstream deployment tooling:
+  - resolve Power Platform environment ids through Dataverse `RetrieveCurrentOrganization`
+  - set an online solution version by updating the Dataverse `solution.version` row and verifying the result
+  - export solution zips through `ExportSolution` or `ExportSolutionAsync`
+  - import solution zips through `ImportSolutionAsync`
 - The CLI `build-manifest` command can either inspect a package zip or export an unmanaged solution from Dataverse before inspection.
   - `--package <zip>` preserves the package-based workflow
   - `--solution <unique-name>` requires `--environment-url` and exports through Dataverse `ExportSolution`
@@ -114,6 +119,7 @@ It owns:
 - Delivery automation is GitHub-native through GitHub Actions workflows in `.github/workflows/`.
 - The Terraform code in `infra/` is consumed as a module by caller-owned root configurations.
 - The released Terraform module artifact, not the source tree, is the self-contained unit that carries the paired API package URI.
+- The Terraform module has optional resource-name override variables for callers that need deterministic or brownfield-compatible names without mutating module source.
 - Contract and validation rules should not be duplicated in hand-maintained JSON schema files.
 - Flex Consumption deployment stays on `azurerm`; only the `onedeploy` extension is applied through an `azapi_resource` ARM deployment wrapper.
 - Function host storage uses managed identity with `AzureWebJobsStorage__accountName` and `AzureWebJobsStorage__credential=managedidentity`; the legacy `AzureWebJobsStorage` app setting is intentionally omitted.

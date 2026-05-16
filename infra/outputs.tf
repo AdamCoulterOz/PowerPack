@@ -26,6 +26,10 @@ output "base_url" {
   value = "https://${azurerm_function_app_flex_consumption.this.default_hostname}"
 }
 
+output "api_base_url" {
+  value = "https://${azurerm_function_app_flex_consumption.this.default_hostname}"
+}
+
 output "api_package_uri" {
   value = local.resolved_api_package_uri
 }
@@ -34,7 +38,15 @@ output "application_client_id" {
   value = azuread_application.api.client_id
 }
 
+output "api_application_client_id" {
+  value = azuread_application.api.client_id
+}
+
 output "application_identifier_uri" {
+  value = local.powerpack_api_identifier_uri
+}
+
+output "api_application_identifier_uri" {
   value = local.powerpack_api_identifier_uri
 }
 
@@ -42,7 +54,15 @@ output "service_principal_object_id" {
   value = azuread_service_principal.api.object_id
 }
 
+output "api_service_principal_object_id" {
+  value = azuread_service_principal.api.object_id
+}
+
 output "app_role_id" {
+  value = random_uuid.powerpack_api_app_role_id.result
+}
+
+output "api_app_role_id" {
   value = random_uuid.powerpack_api_app_role_id.result
 }
 

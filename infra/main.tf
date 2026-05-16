@@ -4,14 +4,15 @@ locals {
   resource_name_prefix         = trim(replace(lower(trimspace(var.name_prefix)), "/[^a-z0-9-]/", "-"), "-")
   storage_account_name_prefix  = substr(replace(local.resource_name_prefix, "/[^a-z0-9]/", ""), 0, 13)
   resource_group_name          = coalesce(var.resource_group_name, "rg-${local.resource_name_prefix}")
-  service_plan_name            = local.resource_name_prefix
-  application_insights_name    = local.resource_name_prefix
+  storage_account_name         = coalesce(var.storage_account_name, "${local.storage_account_name_prefix}${random_string.storage_account_suffix.result}")
+  service_plan_name            = coalesce(var.service_plan_name, local.resource_name_prefix)
+  application_insights_name    = coalesce(var.application_insights_name, local.resource_name_prefix)
   key_vault_name               = substr("kv-${local.storage_account_name_prefix}-${substr(random_string.storage_account_suffix.result, 0, 8)}", 0, 24)
-  function_app_name            = "${local.resource_name_prefix}-${random_string.function_app_suffix.result}"
-  powerpack_api_display_name   = title(replace(local.resource_name_prefix, "-", " "))
+  function_app_name            = coalesce(var.function_app_name, "${local.resource_name_prefix}-${random_string.function_app_suffix.result}")
+  powerpack_api_display_name   = coalesce(var.powerpack_api_display_name, title(replace(local.resource_name_prefix, "-", " ")))
   powerpack_api_app_role_name  = "PowerPack.Access"
   powerpack_api_scope_name     = "user_impersonation"
-  powerpack_api_identifier_uri = "api://${local.resource_name_prefix}"
+  powerpack_api_identifier_uri = coalesce(var.powerpack_api_identifier_uri, "api://${local.resource_name_prefix}")
   resolved_api_package_uri     = local.baked_api_package_uri
 }
 
@@ -95,7 +96,7 @@ resource "azurerm_resource_group" "this" {
 }
 
 resource "azurerm_storage_account" "this" {
-  name                     = "${local.storage_account_name_prefix}${random_string.storage_account_suffix.result}"
+  name                     = local.storage_account_name
   resource_group_name      = azurerm_resource_group.this.name
   location                 = azurerm_resource_group.this.location
   account_tier             = "Standard"

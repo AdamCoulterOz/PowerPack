@@ -1,4 +1,3 @@
-using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -8,6 +7,7 @@ namespace PowerPack.Services;
 
 public sealed class DataverseSolutionClient(HttpClient httpClient, TokenCredential credential)
 {
+    private const string DataverseApiVersion = "v9.2";
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     private readonly HttpClient _httpClient = httpClient;
@@ -15,31 +15,84 @@ public sealed class DataverseSolutionClient(HttpClient httpClient, TokenCredenti
 
     public static string NormalizeEnvironmentUrl(string environmentUrl)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(environmentUrl);
+        if (string.IsNullOrWhiteSpace(environmentUrl))
+            throw new PowerPackServiceException("Dataverse environment URL must be a non-empty string.");
 
         var trimmed = environmentUrl.Trim().TrimEnd('/');
         if (!Uri.TryCreate(trimmed, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps)
             throw new PowerPackServiceException($"Dataverse environment URL must be an absolute HTTPS URL: {environmentUrl}");
+
         return trimmed;
     }
 
     public async Task<string> ResolvePowerPlatformEnvironmentIdAsync(
         string environmentUrl,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken = default)
     {
         var response = await SendDataverseRequestAsync(
             environmentUrl,
             HttpMethod.Get,
-            "/api/data/v9.2/RetrieveCurrentOrganization(AccessType=@p1)?@p1=Microsoft.Dynamics.CRM.EndpointAccessType'Default'",
+            $"/api/data/{DataverseApiVersion}/RetrieveCurrentOrganization(AccessType=@p1)?@p1=Microsoft.Dynamics.CRM.EndpointAccessType'Default'",
             null,
             cancellationToken);
 
-        var json = JsonNode.Parse(response) as JsonObject
-            ?? throw new PowerPackServiceException("RetrieveCurrentOrganization did not return a JSON object.");
+        var json = ParseJsonObject(response, "RetrieveCurrentOrganization");
         var environmentId = json["Detail"]?["EnvironmentId"]?.GetValue<string>();
         if (string.IsNullOrWhiteSpace(environmentId))
             throw new PowerPackServiceException("RetrieveCurrentOrganization response did not include Detail.EnvironmentId.");
+
         return environmentId.Trim();
+    }
+
+    public async Task SetSolutionVersionAsync(
+        string environmentUrl,
+        string solutionUniqueName,
+        string solutionVersion,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedEnvironmentUrl = NormalizeEnvironmentUrl(environmentUrl);
+        var normalizedSolutionName = Required(solutionUniqueName, "Solution unique name");
+        var normalizedVersion = Required(solutionVersion, "Solution version");
+        var solutionId = await GetSolutionIdAsync(normalizedEnvironmentUrl, normalizedSolutionName, cancellationToken);
+
+        var body = new JsonObject
+        {
+            ["version"] = normalizedVersion,
+        };
+
+        await SendDataverseRequestAsync(
+            normalizedEnvironmentUrl,
+            HttpMethod.Patch,
+            $"/api/data/{DataverseApiVersion}/solutions({solutionId})",
+            body.ToJsonString(JsonOptions),
+            cancellationToken);
+
+        var versionAfterUpdate = await GetSolutionVersionAsync(normalizedEnvironmentUrl, normalizedSolutionName, cancellationToken);
+        if (!string.Equals(versionAfterUpdate, normalizedVersion, StringComparison.Ordinal))
+        {
+            throw new PowerPackServiceException(
+                $"SetSolutionVersion verification failed for '{normalizedSolutionName}'. Expected '{normalizedVersion}' and found '{versionAfterUpdate}'.");
+        }
+    }
+
+    public async Task<byte[]> ExportSolutionAsync(
+        string environmentUrl,
+        string solutionUniqueName,
+        bool managed,
+        bool useAsync = false,
+        TimeSpan? maxAsyncWaitTime = null,
+        CancellationToken cancellationToken = default)
+    {
+        return await ExportSolutionAsync(
+            environmentUrl,
+            new DataverseSolutionExportOptions
+            {
+                SolutionName = solutionUniqueName,
+                Managed = managed,
+                UseAsync = useAsync,
+                MaxAsyncWaitTime = maxAsyncWaitTime,
+            },
+            cancellationToken);
     }
 
     public async Task<byte[]> ExportSolutionAsync(
@@ -48,46 +101,21 @@ public sealed class DataverseSolutionClient(HttpClient httpClient, TokenCredenti
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(options);
-        if (string.IsNullOrWhiteSpace(options.SolutionName))
-            throw new PowerPackServiceException("Solution export requires a non-empty solution unique name.");
+        var normalizedEnvironmentUrl = NormalizeEnvironmentUrl(environmentUrl);
+        var normalizedSolutionName = Required(options.SolutionName, "Solution export solution unique name");
 
-        var body = new JsonObject
-        {
-            ["SolutionName"] = options.SolutionName.Trim(),
-            ["Managed"] = options.Managed,
-        };
-        AddOptional(body, "ExportAutoNumberingSettings", options.ExportAutoNumberingSettings);
-        AddOptional(body, "ExportCalendarSettings", options.ExportCalendarSettings);
-        AddOptional(body, "ExportCustomizationSettings", options.ExportCustomizationSettings);
-        AddOptional(body, "ExportEmailTrackingSettings", options.ExportEmailTrackingSettings);
-        AddOptional(body, "ExportGeneralSettings", options.ExportGeneralSettings);
-        AddOptional(body, "ExportIsvConfig", options.ExportIsvConfig);
-        AddOptional(body, "ExportMarketingSettings", options.ExportMarketingSettings);
-        AddOptional(body, "ExportOutlookSynchronizationSettings", options.ExportOutlookSynchronizationSettings);
-        AddOptional(body, "ExportRelationshipRoles", options.ExportRelationshipRoles);
-        AddOptional(body, "ExportSales", options.ExportSales);
-
-        var response = await SendDataverseRequestAsync(
-            environmentUrl,
-            HttpMethod.Post,
-            "/api/data/v9.2/ExportSolution",
-            body.ToJsonString(JsonOptions),
-            cancellationToken);
-
-        var json = JsonNode.Parse(response) as JsonObject
-            ?? throw new PowerPackServiceException("ExportSolution did not return a JSON object.");
-        var packageBase64 = json["ExportSolutionFile"]?.GetValue<string>();
-        if (string.IsNullOrWhiteSpace(packageBase64))
-            throw new PowerPackServiceException("ExportSolution response did not include ExportSolutionFile.");
-
-        try
-        {
-            return Convert.FromBase64String(packageBase64);
-        }
-        catch (FormatException exception)
-        {
-            throw new PowerPackServiceException($"ExportSolutionFile was not valid base64: {exception.Message}", exception);
-        }
+        return options.UseAsync
+            ? await ExportSolutionWithAsyncJobAsync(
+                normalizedEnvironmentUrl,
+                options,
+                normalizedSolutionName,
+                options.MaxAsyncWaitTime ?? TimeSpan.FromMinutes(60),
+                cancellationToken)
+            : await ExportSolutionImmediatelyAsync(
+                normalizedEnvironmentUrl,
+                options,
+                normalizedSolutionName,
+                cancellationToken);
     }
 
     public async Task<DataverseSolutionImportJob> StartImportSolutionAsync(
@@ -119,12 +147,11 @@ public sealed class DataverseSolutionClient(HttpClient httpClient, TokenCredenti
         var response = await SendDataverseRequestAsync(
             environmentUrl,
             HttpMethod.Post,
-            "/api/data/v9.2/ImportSolutionAsync",
+            $"/api/data/{DataverseApiVersion}/ImportSolutionAsync",
             body.ToJsonString(JsonOptions),
             cancellationToken);
 
-        var json = JsonNode.Parse(response) as JsonObject
-            ?? throw new PowerPackServiceException("ImportSolutionAsync did not return a JSON object.");
+        var json = ParseJsonObject(response, "ImportSolutionAsync");
         var asyncOperationId = ReadGuid(json, "AsyncOperationId");
         var importJobKey = json["ImportJobKey"]?.GetValue<string>();
         if (string.IsNullOrWhiteSpace(importJobKey))
@@ -141,12 +168,11 @@ public sealed class DataverseSolutionClient(HttpClient httpClient, TokenCredenti
         var response = await SendDataverseRequestAsync(
             environmentUrl,
             HttpMethod.Get,
-            $"/api/data/v9.2/asyncoperations({asyncOperationId:D})?$select=statecode,statuscode,message,friendlymessage,errorcode",
+            $"/api/data/{DataverseApiVersion}/asyncoperations({asyncOperationId})?$select=statecode,statuscode,errorcode,message,messagename,friendlymessage,correlationid",
             null,
             cancellationToken);
 
-        var json = JsonNode.Parse(response) as JsonObject
-            ?? throw new PowerPackServiceException("AsyncOperation lookup did not return a JSON object.");
+        var json = ParseJsonObject(response, "AsyncOperation lookup");
         return new DataverseAsyncOperationStatus(
             asyncOperationId,
             ReadInt32(json, "statecode"),
@@ -217,9 +243,122 @@ public sealed class DataverseSolutionClient(HttpClient httpClient, TokenCredenti
         await SendDataverseRequestAsync(
             environmentUrl,
             HttpMethod.Post,
-            "/api/data/v9.2/PublishAllXml",
+            $"/api/data/{DataverseApiVersion}/PublishAllXml",
             "{}",
             cancellationToken);
+    }
+
+    private async Task<byte[]> ExportSolutionImmediatelyAsync(
+        string environmentUrl,
+        DataverseSolutionExportOptions options,
+        string solutionUniqueName,
+        CancellationToken cancellationToken)
+    {
+        var body = CreateExportSolutionBody(options, solutionUniqueName);
+        var response = await SendDataverseRequestAsync(
+            environmentUrl,
+            HttpMethod.Post,
+            $"/api/data/{DataverseApiVersion}/ExportSolution",
+            body.ToJsonString(JsonOptions),
+            cancellationToken);
+
+        return ExportSolutionFile(ParseJsonObject(response, "ExportSolution"), "ExportSolution");
+    }
+
+    private async Task<byte[]> ExportSolutionWithAsyncJobAsync(
+        string environmentUrl,
+        DataverseSolutionExportOptions options,
+        string solutionUniqueName,
+        TimeSpan maxAsyncWaitTime,
+        CancellationToken cancellationToken)
+    {
+        if (maxAsyncWaitTime <= TimeSpan.Zero)
+            throw new PowerPackServiceException("Maximum async wait time must be greater than zero.");
+
+        var body = CreateExportSolutionBody(options, solutionUniqueName);
+        var response = await SendDataverseRequestAsync(
+            environmentUrl,
+            HttpMethod.Post,
+            $"/api/data/{DataverseApiVersion}/ExportSolutionAsync",
+            body.ToJsonString(JsonOptions),
+            cancellationToken);
+
+        var json = ParseJsonObject(response, "ExportSolutionAsync");
+        var asyncOperationId = ReadGuid(json, "AsyncOperationId");
+        var exportJobId = ReadGuid(json, "ExportJobId");
+        var status = await WaitForAsyncOperationAsync(
+            environmentUrl,
+            asyncOperationId,
+            maxAsyncWaitTime,
+            TimeSpan.FromSeconds(4),
+            cancellationToken);
+        if (!status.Succeeded)
+            throw new PowerPackServiceException(
+                $"Dataverse solution export failed with async status {status.StateCode}/{status.StatusCode}: {status.Message}");
+
+        var downloadBody = new JsonObject
+        {
+            ["ExportJobId"] = exportJobId,
+        };
+        var download = await SendDataverseRequestAsync(
+            environmentUrl,
+            HttpMethod.Post,
+            $"/api/data/{DataverseApiVersion}/DownloadSolutionExportData",
+            downloadBody.ToJsonString(JsonOptions),
+            cancellationToken);
+
+        return ExportSolutionFile(ParseJsonObject(download, "DownloadSolutionExportData"), "DownloadSolutionExportData");
+    }
+
+    private async Task<Guid> GetSolutionIdAsync(
+        string environmentUrl,
+        string solutionUniqueName,
+        CancellationToken cancellationToken)
+    {
+        var solution = await GetSolutionAsync(environmentUrl, solutionUniqueName, cancellationToken);
+        var solutionId = solution["solutionid"]?.GetValue<string>();
+        if (!Guid.TryParse(solutionId, out var parsed))
+            throw new PowerPackServiceException($"Solution '{solutionUniqueName}' did not include a valid solutionid.");
+
+        return parsed;
+    }
+
+    private async Task<string> GetSolutionVersionAsync(
+        string environmentUrl,
+        string solutionUniqueName,
+        CancellationToken cancellationToken)
+    {
+        var solution = await GetSolutionAsync(environmentUrl, solutionUniqueName, cancellationToken);
+        var version = solution["version"]?.GetValue<string>();
+        if (string.IsNullOrWhiteSpace(version))
+            throw new PowerPackServiceException($"Solution '{solutionUniqueName}' did not include a version.");
+
+        return version.Trim();
+    }
+
+    private async Task<JsonObject> GetSolutionAsync(
+        string environmentUrl,
+        string solutionUniqueName,
+        CancellationToken cancellationToken)
+    {
+        var filter = Uri.EscapeDataString($"uniquename eq '{ODataString(solutionUniqueName)}'");
+        var response = await SendDataverseRequestAsync(
+            environmentUrl,
+            HttpMethod.Get,
+            $"/api/data/{DataverseApiVersion}/solutions?$select=solutionid,uniquename,version&$filter={filter}",
+            null,
+            cancellationToken);
+
+        var json = ParseJsonObject(response, "Retrieve solution");
+        var values = json["value"] as JsonArray
+            ?? throw new PowerPackServiceException("Retrieve solution response did not include a value array.");
+        if (values.Count == 0)
+            throw new PowerPackServiceException($"Solution '{solutionUniqueName}' was not found.");
+        if (values.Count > 1)
+            throw new PowerPackServiceException($"Solution '{solutionUniqueName}' matched multiple solution rows.");
+
+        return values[0] as JsonObject
+            ?? throw new PowerPackServiceException($"Solution '{solutionUniqueName}' response row was not a JSON object.");
     }
 
     private async Task<string> SendDataverseRequestAsync(
@@ -235,7 +374,7 @@ public sealed class DataverseSolutionClient(HttpClient httpClient, TokenCredenti
             cancellationToken);
 
         using var request = new HttpRequestMessage(method, normalizedEnvironmentUrl + relativePath);
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken.Token);
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken.Token);
         request.Headers.Accept.ParseAdd("application/json");
         request.Headers.Add("OData-Version", "4.0");
         request.Headers.Add("OData-MaxVersion", "4.0");
@@ -247,7 +386,59 @@ public sealed class DataverseSolutionClient(HttpClient httpClient, TokenCredenti
         if (!response.IsSuccessStatusCode)
             throw new PowerPackServiceException(
                 $"Dataverse {method} {relativePath} failed: HTTP {(int)response.StatusCode}: {payload}");
+
         return payload;
+    }
+
+    private static JsonObject CreateExportSolutionBody(
+        DataverseSolutionExportOptions options,
+        string solutionUniqueName)
+    {
+        var body = new JsonObject
+        {
+            ["SolutionName"] = solutionUniqueName,
+            ["Managed"] = options.Managed,
+        };
+        AddOptional(body, "ExportAutoNumberingSettings", options.ExportAutoNumberingSettings);
+        AddOptional(body, "ExportCalendarSettings", options.ExportCalendarSettings);
+        AddOptional(body, "ExportCustomizationSettings", options.ExportCustomizationSettings);
+        AddOptional(body, "ExportEmailTrackingSettings", options.ExportEmailTrackingSettings);
+        AddOptional(body, "ExportGeneralSettings", options.ExportGeneralSettings);
+        AddOptional(body, "ExportIsvConfig", options.ExportIsvConfig);
+        AddOptional(body, "ExportMarketingSettings", options.ExportMarketingSettings);
+        AddOptional(body, "ExportOutlookSynchronizationSettings", options.ExportOutlookSynchronizationSettings);
+        AddOptional(body, "ExportRelationshipRoles", options.ExportRelationshipRoles);
+        AddOptional(body, "ExportSales", options.ExportSales);
+        return body;
+    }
+
+    private static byte[] ExportSolutionFile(JsonObject json, string operation)
+    {
+        var packageBase64 = json["ExportSolutionFile"]?.GetValue<string>();
+        if (string.IsNullOrWhiteSpace(packageBase64))
+            throw new PowerPackServiceException($"{operation} response did not include ExportSolutionFile.");
+
+        try
+        {
+            return Convert.FromBase64String(packageBase64);
+        }
+        catch (FormatException exception)
+        {
+            throw new PowerPackServiceException($"{operation} returned an invalid ExportSolutionFile payload: {exception.Message}", exception);
+        }
+    }
+
+    private static JsonObject ParseJsonObject(string json, string operation)
+    {
+        try
+        {
+            return JsonNode.Parse(json) as JsonObject
+                ?? throw new PowerPackServiceException($"{operation} did not return a JSON object.");
+        }
+        catch (JsonException exception)
+        {
+            throw new PowerPackServiceException($"{operation} returned invalid JSON: {exception.Message}", exception);
+        }
     }
 
     private static void AddOptional(JsonObject body, string propertyName, bool? value)
@@ -270,6 +461,13 @@ public sealed class DataverseSolutionClient(HttpClient httpClient, TokenCredenti
             throw new PowerPackServiceException($"{propertyName} was missing from the Dataverse response.");
         return json[propertyName]!.GetValue<int>();
     }
+
+    private static string Required(string value, string name) =>
+        string.IsNullOrWhiteSpace(value)
+            ? throw new PowerPackServiceException($"{name} must be a non-empty string.")
+            : value.Trim();
+
+    private static string ODataString(string value) => value.Replace("'", "''", StringComparison.Ordinal);
 }
 
 public sealed class DataverseSolutionExportOptions
@@ -277,6 +475,10 @@ public sealed class DataverseSolutionExportOptions
     public required string SolutionName { get; init; }
 
     public bool Managed { get; init; }
+
+    public bool UseAsync { get; init; }
+
+    public TimeSpan? MaxAsyncWaitTime { get; init; }
 
     public bool? ExportAutoNumberingSettings { get; init; }
 
