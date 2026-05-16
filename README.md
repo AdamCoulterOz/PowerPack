@@ -289,7 +289,7 @@ GitHub Packages publish is handled by the release workflow.
 - `AzureWebJobsStorage` is configured with:
   - `AzureWebJobsStorage__accountName`
   - `AzureWebJobsStorage__credential=managedidentity`
-  - `AzureWebJobsStorage=""`
+  - no legacy `AzureWebJobsStorage` app setting
 - PowerPack table access is configured with:
   - `PowerPack__Storage__AccountUrl`
 - PowerPack blob access is configured with:
@@ -309,6 +309,9 @@ GitHub Packages publish is handled by the release workflow.
   - `Storage Blob Data Owner`
   - `Storage Table Data Contributor`
   - `Monitoring Metrics Publisher`
+  - `Key Vault Secrets User`
+- Key Vault uses Azure RBAC authorization, not access policies
+- the deployment principal is granted `Key Vault Secrets Officer` on the vault so Terraform can manage the download-token signing secret
 
 ## Deployment Graph
 
@@ -318,7 +321,7 @@ GitHub Packages publish is handled by the release workflow.
   - Flex plan
   - Function App
   - role assignments
-  - Key Vault and secret reference wiring
+  - Key Vault RBAC and secret reference wiring
 - the Function App owns table creation and schema usage:
   - `solutionindex`
   - `dependencyindex`

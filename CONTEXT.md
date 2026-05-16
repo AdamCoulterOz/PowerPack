@@ -116,8 +116,9 @@ It owns:
 - The released Terraform module artifact, not the source tree, is the self-contained unit that carries the paired API package URI.
 - Contract and validation rules should not be duplicated in hand-maintained JSON schema files.
 - Flex Consumption deployment stays on `azurerm`; only the `onedeploy` extension is applied through an `azapi_resource` ARM deployment wrapper.
-- Function host storage uses managed identity with `AzureWebJobsStorage__accountName`, `AzureWebJobsStorage__credential=managedidentity`, and an explicit blank `AzureWebJobsStorage`.
+- Function host storage uses managed identity with `AzureWebJobsStorage__accountName` and `AzureWebJobsStorage__credential=managedidentity`; the legacy `AzureWebJobsStorage` app setting is intentionally omitted.
 - PowerPack download token signing uses a Key Vault secret reference rather than a plain app setting.
+- Key Vault access uses Azure RBAC, not access policies.
 - Application Insights ingestion uses Entra authentication with `APPLICATIONINSIGHTS_AUTHENTICATION_STRING=Authorization=AAD`.
 - Function App Easy Auth is intentionally not used because its path-exclusion model does not fit the dynamic anonymous package download route.
 - The PowerPack API app registration exposes `PowerPack.Access` as an app role and `user_impersonation` as a delegated OAuth scope so both automation principals and signed-in users can call protected endpoints.
@@ -155,4 +156,3 @@ It owns:
 
 - The Terraform module still creates its own Entra application and service principal, which is convenient but may be too opinionated for some tenants.
 - The release workflow currently publishes the CLI and Core library packages to GitHub Packages; consumers outside GitHub Packages may still want an alternate feed strategy.
-- The Key Vault currently uses access policies for the Function identity; revisit whether RBAC-only Key Vault access is viable for this deployment shape.

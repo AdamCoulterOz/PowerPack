@@ -107,7 +107,7 @@ The `PowerPack.Core` package exposes these stable consumer APIs:
 - `powerpack build-manifest --solution` exports an unmanaged solution from Dataverse before manifest inspection.
 - `powerpack build-manifest` and `powerpack publish` resolve the Power Platform environment id from a Dataverse environment URL.
 - `powerpack install-package` downloads packages and imports them through Dataverse Web API solution actions.
-- The Terraform module provisions Azure infrastructure and applies the Function App package through OneDeploy.
+- The Terraform module provisions Azure infrastructure, grants storage and Key Vault RBAC roles, and applies the Function App package through OneDeploy.
 
 ## Dependency Boundaries
 

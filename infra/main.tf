@@ -139,26 +139,23 @@ resource "azurerm_key_vault" "this" {
   sku_name                   = "standard"
   soft_delete_retention_days = 7
   purge_protection_enabled   = false
+  rbac_authorization_enabled = true
+}
 
-  access_policy {
-    tenant_id = data.azurerm_client_config.current.tenant_id
-    object_id = data.azurerm_client_config.current.object_id
-
-    secret_permissions = [
-      "Delete",
-      "Get",
-      "List",
-      "Purge",
-      "Recover",
-      "Set",
-    ]
-  }
+resource "azurerm_role_assignment" "deployment_key_vault_secrets_officer" {
+  scope                = azurerm_key_vault.this.id
+  role_definition_name = "Key Vault Secrets Officer"
+  principal_id         = data.azurerm_client_config.current.object_id
 }
 
 resource "azurerm_key_vault_secret" "download_token_signing_key" {
   name         = "download-token-signing-key"
   key_vault_id = azurerm_key_vault.this.id
   value        = random_password.download_token_signing_key.result
+
+  depends_on = [
+    azurerm_role_assignment.deployment_key_vault_secrets_officer,
+  ]
 }
 
 resource "azurerm_function_app_flex_consumption" "this" {
@@ -190,7 +187,6 @@ resource "azurerm_function_app_flex_consumption" "this" {
     "APPLICATIONINSIGHTS_AUTHENTICATION_STRING" = "Authorization=AAD"
     "AzureWebJobsStorage__accountName"          = azurerm_storage_account.this.name
     "AzureWebJobsStorage__credential"           = "managedidentity"
-    "AzureWebJobsStorage"                       = ""
     "PowerPack__Storage__AccountUrl"            = azurerm_storage_account.this.primary_table_endpoint
     "PowerPack__Storage__BlobAccountUrl"        = azurerm_storage_account.this.primary_blob_endpoint
     "PowerPack__Storage__PackageContainerName"  = azurerm_storage_container.solution_packages.name
@@ -258,7 +254,7 @@ resource "azapi_resource" "function_app_onedeploy" {
     azurerm_role_assignment.function_host_blob_owner,
     azurerm_role_assignment.function_host_table_contributor,
     azurerm_role_assignment.function_host_monitoring_metrics_publisher,
-    azurerm_key_vault_access_policy.function_host,
+    azurerm_role_assignment.function_host_key_vault_secrets_user,
   ]
 
   lifecycle {
@@ -290,13 +286,9 @@ resource "azurerm_role_assignment" "function_host_monitoring_metrics_publisher" 
   principal_type       = "ServicePrincipal"
 }
 
-resource "azurerm_key_vault_access_policy" "function_host" {
-  key_vault_id = azurerm_key_vault.this.id
-  tenant_id    = azurerm_function_app_flex_consumption.this.identity[0].tenant_id
-  object_id    = azurerm_function_app_flex_consumption.this.identity[0].principal_id
-
-  secret_permissions = [
-    "Get",
-    "List",
-  ]
+resource "azurerm_role_assignment" "function_host_key_vault_secrets_user" {
+  scope                = azurerm_key_vault.this.id
+  role_definition_name = "Key Vault Secrets User"
+  principal_id         = azurerm_function_app_flex_consumption.this.identity[0].principal_id
+  principal_type       = "ServicePrincipal"
 }

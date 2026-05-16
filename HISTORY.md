@@ -23,3 +23,9 @@ The older `--power-platform-environment-id` option was removed from the CLI surf
 `PowerPack.Core` now publishes the reusable library boundary for CrmProxy-style consumers. Built-in Power Platform solution knowledge, PowerPack API package publish/resolve/download primitives, Dataverse solution export/import primitives, and dependency-first deployment planning are exposed as Core APIs.
 
 The CLI now consumes those Core APIs instead of carrying private Dataverse and PowerPack HTTP helpers. Package import uses Dataverse Web API solution actions directly, so PAC CLI behavior remains a reference for compatible semantics rather than a runtime dependency.
+
+## 2026-05-16: Key Vault RBAC And Host Storage Settings
+
+The Terraform module moved completely from Key Vault access policies to Azure RBAC for secret access. The deployment principal receives `Key Vault Secrets Officer` for Terraform-managed secret lifecycle, and the Function host identity receives `Key Vault Secrets User` for runtime Key Vault references.
+
+The Flex Consumption Function App now omits the legacy `AzureWebJobsStorage` app setting and keeps only the identity-based host storage settings. This removes the previous explicit blank setting that could drift through provider/API normalization.
