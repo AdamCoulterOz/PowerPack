@@ -1,6 +1,8 @@
 using System.ComponentModel;
 using System.Text.Json;
 using Azure.Identity;
+using PowerPack.Models;
+using PowerPack.Services;
 using Spectre.Console;
 using Spectre.Console.Cli;
 
@@ -8,8 +10,6 @@ namespace PowerPack.Cli;
 
 internal sealed class PublishCommand : AsyncCommand<PublishCommand.Settings>
 {
-    private readonly PowerPackCliClient _client = new();
-
     public sealed class Settings : CommandSettings
     {
         [CommandOption("--api-base-url <URL>")]
@@ -57,30 +57,52 @@ internal sealed class PublishCommand : AsyncCommand<PublishCommand.Settings>
     {
         try
         {
-            var environmentUrl = BuildManifestCommand.NormalizeEnvironmentUrl(settings.EnvironmentUrl);
+            var environmentUrl = DataverseSolutionClient.NormalizeEnvironmentUrl(settings.EnvironmentUrl);
             using var httpClient = new HttpClient();
-            var powerPlatformEnvironmentId = await BuildManifestCommand.ResolvePowerPlatformEnvironmentIdAsync(
-                httpClient,
-                new AzureCliCredential(),
+            var credential = new AzureCliCredential();
+            var dataverseClient = new DataverseSolutionClient(httpClient, credential);
+            var powerPlatformEnvironmentId = await dataverseClient.ResolvePowerPlatformEnvironmentIdAsync(
                 environmentUrl,
-                cancellationToken
-            );
+                cancellationToken);
 
-            var payload = await _client.PublishAsync(
-                settings.ApiBaseUrl,
-                settings.ApplicationIdUri,
-                settings.PackagePath,
-                settings.Quality,
-                powerPlatformEnvironmentId,
-                cancellationToken
-            );
-            Console.Out.WriteLine(payload.ToJsonString(new JsonSerializerOptions(JsonSerializerDefaults.Web)
+            var packageFile = new FileInfo(settings.PackagePath);
+            if (!packageFile.Exists)
+                throw new CliException($"Package zip was not found: {packageFile.FullName}");
+
+            var apiClient = new PowerPackApiClient(
+                httpClient,
+                new PowerPackApiClientOptions
+                {
+                    Credential = credential,
+                    ApplicationIdUri = settings.ApplicationIdUri,
+                });
+            await using var packageStream = packageFile.OpenRead();
+            var payload = await apiClient.PublishPackageAsync(
+                new PowerPackPackagePublishRequest
+                {
+                    ApiBaseUrl = settings.ApiBaseUrl,
+                    PackageContent = packageStream,
+                    Quality = settings.Quality,
+                    PowerPlatformEnvironmentId = powerPlatformEnvironmentId,
+                },
+                cancellationToken);
+            Console.Out.WriteLine(JsonSerializer.Serialize(payload, new JsonSerializerOptions(JsonSerializerDefaults.Web)
             {
                 WriteIndented = true,
             }));
             return 0;
         }
         catch (CliException exception)
+        {
+            Console.Error.WriteLine(exception.Message);
+            return 1;
+        }
+        catch (PowerPackValidationException exception)
+        {
+            Console.Error.WriteLine(exception.Message);
+            return 1;
+        }
+        catch (PowerPackServiceException exception)
         {
             Console.Error.WriteLine(exception.Message);
             return 1;

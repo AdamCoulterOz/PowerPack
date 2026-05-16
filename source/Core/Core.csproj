@@ -6,6 +6,10 @@
     <Nullable>enable</Nullable>
     <AssemblyName>PowerPack.Core</AssemblyName>
     <RootNamespace>PowerPack</RootNamespace>
+    <PackageId>PowerPack.Core</PackageId>
+    <Authors>PowerPack</Authors>
+    <Description>Shared library APIs and models for PowerPack package publishing, Dataverse solution operations, manifest building, and dependency graph planning.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
   <ItemGroup>
@@ -15,6 +19,10 @@
   <ItemGroup>
     <EmbeddedResource Include="built-in-solutions.json" />
     <EmbeddedResource Include="default-blocked-attachment-extensions.txt" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 
 </Project>

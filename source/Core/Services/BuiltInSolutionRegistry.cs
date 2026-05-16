@@ -16,6 +16,9 @@ public sealed class BuiltInSolutionRegistry
 
     public static BuiltInSolutionRegistry Default { get; } = LoadDefault();
 
+    public IReadOnlyCollection<string> SolutionUniqueNames =>
+        _solutionNames.Order(StringComparer.OrdinalIgnoreCase).ToArray();
+
     public bool Contains(string solutionName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(solutionName);

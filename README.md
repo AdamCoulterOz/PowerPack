@@ -98,7 +98,8 @@ Important:
 - this registry exists so dependency analysis can distinguish:
   - platform solutions that must already exist in the target environment
   - package-managed solutions that must exist in the PowerPack registry
-- the shared dependency Terraform generator uses this registry as an explicit exclusion set
+- `PowerPack.Core` exposes the registry through `BuiltInSolutionRegistry.Default`
+- shared dependency planning uses this registry as an explicit exclusion set
   - built-in solution dependencies are not resolved through the PowerPack index
   - built-in solution dependencies do not produce package nodes or Terraform inter-package edges
 
@@ -180,7 +181,7 @@ That lets callers project the full deployment contract without issuing follow-up
 
 The CLI also provides `powerpack resolve-deployment-graph`, which parses a source `missingdependencies.yml`, calls `resolve-set`, and emits a generic deployment graph with roots, topological order, per-package deployment metadata, identities, connection references, environment variables, source-active flows, and environment requirements.
 
-The CLI also provides `powerpack install-package`, an operator command for directly installing one PowerPack package and its package-managed dependencies into a Dataverse environment without generating Terraform. It resolves the requested package through the API, downloads every resolved package, computes dependency-first install order, and imports the packages with `pac solution import`. Optional per-package PAC deployment settings can be supplied with `--settings-directory`.
+The CLI also provides `powerpack install-package`, an operator command for directly installing one PowerPack package and its package-managed dependencies into a Dataverse environment without generating Terraform. It resolves the requested package through the API, downloads every resolved package, computes dependency-first install order, and imports the packages through Dataverse Web API solution actions. PAC CLI behavior is reference behavior for option semantics only; `powerpack install-package` does not shell out to `pac`.
 
 `GET /api/packages/{name}/{version}/download` is the direct package download endpoint.
 
@@ -206,7 +207,7 @@ This repo uses GitHub Actions instead of Azure DevOps.
   - packs the CLI with the tag version
   - builds `released-package.zip` for the Function App
   - builds `module-<version>.zip` with a baked reference to that release's API package asset URL
-  - publishes the CLI package to GitHub Packages
+  - publishes the CLI and Core library packages to GitHub Packages
   - creates a GitHub release with the packaged artifacts
 
 ## CLI
@@ -222,6 +223,27 @@ This repo uses GitHub Actions instead of Azure DevOps.
   - `Azure.Identity` with Azure CLI token acquisition
 
 The CLI shares PowerPack contracts with the API and is intended to be installed by the shared Dataverse pipeline as a NuGet tool.
+
+## Library API
+
+- `source/Core/` is packaged as `PowerPack.Core`.
+- The following Core APIs are stable enough for CrmProxy consumption:
+  - `BuiltInSolutionRegistry.Default`
+    - exposes platform-owned solution unique names and case-insensitive built-in checks
+  - `PowerPackApiClient`
+    - publishes package zips to the PowerPack API
+    - resolves package sets
+    - downloads signed package URLs without adding a PowerPack API bearer token
+  - `DataverseSolutionClient`
+    - normalizes Dataverse environment URLs
+    - resolves Power Platform environment ids from Dataverse URLs
+    - exports solutions through Dataverse `ExportSolution`
+    - imports solutions through Dataverse `ImportSolutionAsync`
+    - waits on Dataverse async operations and can publish all changes after import
+  - `DependencyDeploymentPlanner.GetDependencyFirstOrder`
+    - computes package import order from a resolved deployment graph
+- The serialized model classes under `source/Core/Models/` remain the stable request, response, manifest, and graph contract.
+- PAC CLI flags are not a library runtime contract. When direct Dataverse import needs environment-variable or connection-reference values, callers should pass Dataverse Web API `ComponentParameters` through `DataverseSolutionImportOptions`.
 
 `build-manifest` can inspect a managed solution zip or export an unmanaged solution from Dataverse before inspection:
 

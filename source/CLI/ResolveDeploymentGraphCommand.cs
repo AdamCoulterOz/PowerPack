@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.IO;
 using System.Text.Json;
+using Azure.Identity;
 using PowerPack.Models;
 using PowerPack.Services;
 using Spectre.Console;
@@ -10,7 +11,6 @@ namespace PowerPack.Cli;
 
 internal sealed class ResolveDeploymentGraphCommand : AsyncCommand<ResolveDeploymentGraphCommand.Settings>
 {
-    private readonly PowerPackCliClient _client = new();
     private readonly MissingDependenciesParser _parser = new();
     private readonly DependencyDeploymentGraphBuilder _graphBuilder = new();
 
@@ -61,9 +61,16 @@ internal sealed class ResolveDeploymentGraphCommand : AsyncCommand<ResolveDeploy
 
             var content = await File.ReadAllTextAsync(missingDependenciesFile.FullName, cancellationToken);
             var roots = _parser.Parse(content, missingDependenciesFile.FullName);
-            var resolution = await _client.ResolveSetResultAsync(
+            using var httpClient = new HttpClient();
+            var client = new PowerPackApiClient(
+                httpClient,
+                new PowerPackApiClientOptions
+                {
+                    Credential = new AzureCliCredential(),
+                    ApplicationIdUri = settings.ApplicationIdUri,
+                });
+            var resolution = await client.ResolveSetAsync(
                 settings.ApiBaseUrl,
-                settings.ApplicationIdUri,
                 new ResolveSetRequest
                 {
                     Solutions = roots,
@@ -93,6 +100,11 @@ internal sealed class ResolveDeploymentGraphCommand : AsyncCommand<ResolveDeploy
             return 1;
         }
         catch (PowerPackValidationException exception)
+        {
+            Console.Error.WriteLine(exception.Message);
+            return 1;
+        }
+        catch (PowerPackServiceException exception)
         {
             Console.Error.WriteLine(exception.Message);
             return 1;

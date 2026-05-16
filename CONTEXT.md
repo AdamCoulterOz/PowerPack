@@ -1,6 +1,6 @@
 # Context
 
-_Last updated: 2026-05-08_
+_Last updated: 2026-05-16_
 
 ## Purpose
 
@@ -45,8 +45,13 @@ It owns:
 - The CLI can install a PowerPack package and its package-managed dependencies directly into a Dataverse environment with `powerpack install-package`.
   - it resolves the requested root package through the PowerPack API
   - it downloads every resolved package
-  - it imports packages with `pac solution import` in dependency-first order
-  - optional per-package PAC deployment settings can be supplied from a settings directory
+  - it imports packages through Dataverse Web API `ImportSolutionAsync` in dependency-first order
+  - PAC CLI behavior is reference behavior only, not a PowerPack runtime dependency
+- `source/Core/` is packaged as `PowerPack.Core` and exposes stable library APIs for CrmProxy-level consumers:
+  - `BuiltInSolutionRegistry.Default`
+  - `PowerPackApiClient`
+  - `DataverseSolutionClient`
+  - `DependencyDeploymentPlanner`
 - `infra/` is now a generic Terraform module rather than an environment-specific Terraform root.
 - Release packaging now produces two paired artifacts: `released-package.zip` for the API and `module-<version>.zip` for the Terraform module with a baked reference to that API asset URL.
 - `test/` now owns reusable test fixtures, including the release-consumer Terraform fixture and .NET-generated Power Platform solution package fixtures.
@@ -69,6 +74,10 @@ It owns:
   - manifest building
   - dependency resolution
   - storage abstractions
+  - built-in solution registry API
+  - package publish/resolve/download client primitives
+  - Dataverse solution export/import primitives
+  - dependency-first deployment planning
 - `source/API/`
   - .NET 10 isolated Azure Functions app
   - Azure-backed storage and download implementations
@@ -78,7 +87,7 @@ It owns:
   - API publish
   - API resolve-set
   - deployment-graph generation from source `missingdependencies.yml`
-  - direct operator package install through `pac solution import`
+  - direct operator package install through Dataverse Web API solution actions
 - `source/Tests/`
   - xUnit coverage for shared/core behavior, API options, and tokenized package download flow
 - `test/`
@@ -100,6 +109,7 @@ It owns:
 - Deployment-graph generation is also responsible for reconciling package-driven environment requirements, including Dataverse attachment-extension policy, so downstream consumers only apply resolved target state.
 - Source-active dependency flows are a PowerPack manifest and graph concern; downstream deployment pipelines should consume `flows` from the graph instead of manually listing dependency workflow ids where possible.
 - Direct CLI installation is an operator path for installing package zips and dependencies; it deliberately does not provision Dataverse environments, service identities, or connector instances.
+- PAC CLI is not a PowerPack runtime dependency; direct package operations use PowerPack API routes and Dataverse Web API actions.
 - The CLI and API may authenticate differently, but they must use the same domain logic.
 - Delivery automation is GitHub-native through GitHub Actions workflows in `.github/workflows/`.
 - The Terraform code in `infra/` is consumed as a module by caller-owned root configurations.
@@ -144,5 +154,5 @@ It owns:
 ## Technical Debt
 
 - The Terraform module still creates its own Entra application and service principal, which is convenient but may be too opinionated for some tenants.
-- The release workflow currently publishes the CLI to GitHub Packages; consumers outside GitHub Packages may still want an alternate feed strategy.
+- The release workflow currently publishes the CLI and Core library packages to GitHub Packages; consumers outside GitHub Packages may still want an alternate feed strategy.
 - The Key Vault currently uses access policies for the Function identity; revisit whether RBAC-only Key Vault access is viable for this deployment shape.

@@ -1,5 +1,5 @@
 using System.ComponentModel;
-using System.Diagnostics;
+using Azure.Identity;
 using PowerPack.Models;
 using PowerPack.Services;
 using Spectre.Console;
@@ -9,9 +9,6 @@ namespace PowerPack.Cli;
 
 internal sealed class InstallPackageCommand : AsyncCommand<InstallPackageCommand.Settings>
 {
-    private readonly PowerPackCliClient _client = new();
-    private readonly DependencyDeploymentGraphBuilder _graphBuilder = new();
-
     public sealed class Settings : CommandSettings
     {
         [CommandOption("--api-base-url <URL>")]
@@ -30,8 +27,8 @@ internal sealed class InstallPackageCommand : AsyncCommand<InstallPackageCommand
         [Description("Minimum root package version to resolve and install.")]
         public required string Version { get; init; }
 
-        [CommandOption("--environment <URL_OR_ID>")]
-        [Description("Target Dataverse environment URL or environment id.")]
+        [CommandOption("--environment <URL>")]
+        [Description("Target Dataverse environment URL.")]
         public required string Environment { get; init; }
 
         [CommandOption("--download-directory <PATH>")]
@@ -39,32 +36,24 @@ internal sealed class InstallPackageCommand : AsyncCommand<InstallPackageCommand
         public string? DownloadDirectory { get; init; }
 
         [CommandOption("--settings-directory <PATH>")]
-        [Description("Optional directory containing pac deployment settings files named by package, transport, or solution unique name.")]
+        [Description("Optional directory checked for PAC deployment settings files; matching files fail because PAC settings are not a runtime import contract.")]
         public string? SettingsDirectory { get; init; }
 
-        [CommandOption("--pac-path <PATH>")]
-        [Description("Power Platform CLI executable path. Defaults to 'pac'.")]
-        public string PacPath { get; init; } = "pac";
-
         [CommandOption("--max-async-wait-time <MINUTES>")]
-        [Description("pac solution import asynchronous wait time in minutes.")]
+        [Description("Dataverse ImportSolutionAsync wait time in minutes.")]
         public int MaxAsyncWaitTimeMinutes { get; init; } = 60;
 
-        [CommandOption("--activate-plugins")]
-        [Description("Pass --activate-plugins to pac solution import.")]
-        public bool ActivatePlugins { get; init; }
-
-        [CommandOption("--skip-lower-version")]
-        [Description("Pass --skip-lower-version to pac solution import.")]
-        public bool SkipLowerVersion { get; init; }
-
         [CommandOption("--no-force-overwrite")]
-        [Description("Do not pass --force-overwrite to pac solution import.")]
+        [Description("Do not overwrite unmanaged customizations during solution import.")]
         public bool NoForceOverwrite { get; init; }
 
         [CommandOption("--no-publish-changes")]
-        [Description("Do not pass --publish-changes to pac solution import.")]
+        [Description("Do not publish all changes after solution import.")]
         public bool NoPublishChanges { get; init; }
+
+        [CommandOption("--publish-workflows")]
+        [Description("Activate workflows included in each imported solution.")]
+        public bool PublishWorkflows { get; init; }
 
         [CommandOption("--dry-run")]
         [Description("Resolve and show the install plan without downloading or importing packages.")]
@@ -86,6 +75,15 @@ internal sealed class InstallPackageCommand : AsyncCommand<InstallPackageCommand
 
             if (string.IsNullOrWhiteSpace(Environment))
                 return ValidationResult.Error("--environment is required.");
+
+            try
+            {
+                DataverseSolutionClient.NormalizeEnvironmentUrl(Environment);
+            }
+            catch (PowerPackServiceException exception)
+            {
+                return ValidationResult.Error(exception.Message);
+            }
 
             if (MaxAsyncWaitTimeMinutes <= 0)
                 return ValidationResult.Error("--max-async-wait-time must be greater than zero.");
@@ -115,6 +113,10 @@ internal sealed class InstallPackageCommand : AsyncCommand<InstallPackageCommand
             if (settings.DryRun)
                 return 0;
 
+            using var httpClient = new HttpClient();
+            var credential = new AzureCliCredential();
+            var apiClient = CreateApiClient(httpClient, credential, settings.ApplicationIdUri);
+            var dataverseClient = new DataverseSolutionClient(httpClient, credential);
             var downloadDirectory = PrepareDownloadDirectory(settings.DownloadDirectory);
             foreach (var packageName in installOrder)
             {
@@ -122,10 +124,11 @@ internal sealed class InstallPackageCommand : AsyncCommand<InstallPackageCommand
                 var packagePath = Path.Combine(downloadDirectory.FullName, SafeFileName($"{node.PackageTransportName}_{node.PackageTransportVersion}.zip"));
 
                 AnsiConsole.MarkupLine($"Downloading [green]{node.Name}[/] {node.Version}...");
-                await _client.DownloadPackageAsync(node.DownloadUrl, packagePath, cancellationToken);
+                await using (var outputStream = File.Create(packagePath))
+                    await apiClient.DownloadPackageAsync(node.DownloadUrl, outputStream, cancellationToken);
 
                 AnsiConsole.MarkupLine($"Importing [green]{node.Name}[/] {node.Version}...");
-                await ImportSolutionAsync(settings, node, packagePath, cancellationToken);
+                await ImportSolutionAsync(dataverseClient, settings, node, packagePath, cancellationToken);
             }
 
             AnsiConsole.MarkupLine("[green]PowerPack package install completed.[/]");
@@ -141,17 +144,22 @@ internal sealed class InstallPackageCommand : AsyncCommand<InstallPackageCommand
             Console.Error.WriteLine(exception.Message);
             return 1;
         }
+        catch (PowerPackServiceException exception)
+        {
+            Console.Error.WriteLine(exception.Message);
+            return 1;
+        }
     }
 
-    private async Task<DependencyDeploymentGraph> ResolveGraphAsync(
+    private static async Task<DependencyDeploymentGraph> ResolveGraphAsync(
         string packageName,
         string version,
         Settings settings,
         CancellationToken cancellationToken)
     {
-        var resolution = await _client.ResolveSetResultAsync(
+        using var httpClient = new HttpClient();
+        var resolution = await CreateApiClient(httpClient, new AzureCliCredential(), settings.ApplicationIdUri).ResolveSetAsync(
             settings.ApiBaseUrl,
-            settings.ApplicationIdUri,
             new ResolveSetRequest
             {
                 Solutions =
@@ -165,78 +173,7 @@ internal sealed class InstallPackageCommand : AsyncCommand<InstallPackageCommand
             },
             cancellationToken);
 
-        return _graphBuilder.Build(resolution);
-    }
-
-    private static IReadOnlyList<string> DependencyDeploymentOrder(DependencyDeploymentGraph graph)
-    {
-        var preferredIndex = graph.TopologicalOrder
-            .Select((packageName, index) => (packageName, index))
-            .ToDictionary(item => item.packageName, item => item.index, StringComparer.Ordinal);
-        var remainingDependencyCount = new Dictionary<string, int>(StringComparer.Ordinal);
-        var dependentsByPackage = graph.Nodes.Keys.ToDictionary(
-            packageName => packageName,
-            _ => new List<string>(),
-            StringComparer.Ordinal);
-
-        foreach (var (packageName, node) in graph.Nodes)
-        {
-            var dependencies = node.Dependencies
-                .Select(dependency => dependency.Name)
-                .Distinct(StringComparer.Ordinal)
-                .ToList();
-
-            foreach (var dependencyName in dependencies)
-            {
-                if (!graph.Nodes.ContainsKey(dependencyName))
-                    throw new CliException(
-                        $"Resolved graph dependency '{dependencyName}' referenced by '{packageName}' was not present in nodes.");
-
-                dependentsByPackage[dependencyName].Add(packageName);
-            }
-
-            remainingDependencyCount[packageName] = dependencies.Count;
-        }
-
-        var readyPackages = remainingDependencyCount
-            .Where(entry => entry.Value == 0)
-            .Select(entry => entry.Key)
-            .OrderBy(packageName => preferredIndex.GetValueOrDefault(packageName, int.MaxValue))
-            .ToList();
-        var installOrder = new List<string>();
-
-        while (readyPackages.Count > 0)
-        {
-            var packageName = readyPackages[0];
-            readyPackages.RemoveAt(0);
-            installOrder.Add(packageName);
-
-            foreach (var dependentName in dependentsByPackage[packageName]
-                         .OrderBy(value => preferredIndex.GetValueOrDefault(value, int.MaxValue)))
-            {
-                remainingDependencyCount[dependentName] -= 1;
-                if (remainingDependencyCount[dependentName] == 0)
-                {
-                    readyPackages.Add(dependentName);
-                    readyPackages = readyPackages
-                        .OrderBy(value => preferredIndex.GetValueOrDefault(value, int.MaxValue))
-                        .ToList();
-                }
-            }
-        }
-
-        if (installOrder.Count != graph.Nodes.Count)
-        {
-            var unresolvedPackages = remainingDependencyCount
-                .Where(entry => entry.Value > 0)
-                .Select(entry => entry.Key)
-                .Order(StringComparer.Ordinal);
-            throw new CliException(
-                "Resolved graph dependencies contain a cycle or unresolved references: " +
-                string.Join(", ", unresolvedPackages));
-        }
-
-        return installOrder;
+        return new DependencyDeploymentGraphBuilder().Build(resolution);
     }
 
     private static DirectoryInfo PrepareDownloadDirectory(string? downloadDirectory)
@@ -249,80 +186,61 @@ internal sealed class InstallPackageCommand : AsyncCommand<InstallPackageCommand
     }
 
     private static async Task ImportSolutionAsync(
+        DataverseSolutionClient dataverseClient,
         Settings settings,
         DependencyDeploymentNode node,
         string packagePath,
         CancellationToken cancellationToken)
     {
-        var arguments = new List<string>
-        {
-            "solution",
-            "import",
-            "--environment",
-            settings.Environment.Trim(),
-            "--path",
-            packagePath,
-            "--async",
-            "--max-async-wait-time",
-            settings.MaxAsyncWaitTimeMinutes.ToString(),
-        };
+        if (ResolveSettingsFile(settings.SettingsDirectory, node) is not null)
+            throw new CliException(
+                "PAC deployment settings files are not a PowerPack runtime contract. Use DataverseSolutionImportOptions.ComponentParameters through the library API for direct imports.");
 
-        if (!settings.NoForceOverwrite)
-            arguments.Add("--force-overwrite");
-        if (!settings.NoPublishChanges)
-            arguments.Add("--publish-changes");
-        if (settings.ActivatePlugins)
-            arguments.Add("--activate-plugins");
-        if (settings.SkipLowerVersion)
-            arguments.Add("--skip-lower-version");
-
-        var settingsFile = ResolveSettingsFile(settings.SettingsDirectory, node);
-        if (settingsFile is not null)
-        {
-            arguments.Add("--settings-file");
-            arguments.Add(settingsFile.FullName);
-        }
-        else if (node.ConnectionReferences.Count > 0)
+        if (node.ConnectionReferences.Count > 0)
         {
             AnsiConsole.MarkupLine(
                 $"[yellow]Package {node.Name} declares connection references. Import will rely on Dataverse defaults or fail if deployment settings are required.[/]");
         }
 
-        var result = await RunProcessAsync(settings.PacPath, arguments, cancellationToken);
-        if (result.ExitCode != 0)
-        {
-            throw new CliException(
-                $"pac solution import failed with exit code {result.ExitCode}.\n{result.Output}");
-        }
+        var packageBytes = await File.ReadAllBytesAsync(packagePath, cancellationToken);
+        await dataverseClient.ImportSolutionAndWaitAsync(
+            settings.Environment.Trim(),
+            packageBytes,
+            new DataverseSolutionImportOptions
+            {
+                OverwriteUnmanagedCustomizations = !settings.NoForceOverwrite,
+                PublishAllChangesAfterImport = !settings.NoPublishChanges,
+                PublishWorkflows = settings.PublishWorkflows,
+            },
+            TimeSpan.FromMinutes(settings.MaxAsyncWaitTimeMinutes),
+            null,
+            cancellationToken);
     }
 
-    private static async Task<ProcessResult> RunProcessAsync(
-        string fileName,
-        IReadOnlyList<string> arguments,
-        CancellationToken cancellationToken)
+    private static PowerPackApiClient CreateApiClient(
+        HttpClient httpClient,
+        AzureCliCredential credential,
+        string applicationIdUri)
     {
-        var startInfo = new ProcessStartInfo
+        return new PowerPackApiClient(
+            httpClient,
+            new PowerPackApiClientOptions
+            {
+                Credential = credential,
+                ApplicationIdUri = applicationIdUri,
+            });
+    }
+
+    private static IReadOnlyList<string> DependencyDeploymentOrder(DependencyDeploymentGraph graph)
+    {
+        try
         {
-            FileName = fileName,
-            RedirectStandardError = true,
-            RedirectStandardOutput = true,
-            UseShellExecute = false,
-        };
-        foreach (var argument in arguments)
-            startInfo.ArgumentList.Add(argument);
-
-        using var process = Process.Start(startInfo)
-            ?? throw new CliException($"Failed to start process '{fileName}'.");
-
-        var outputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
-        var errorTask = process.StandardError.ReadToEndAsync(cancellationToken);
-        await process.WaitForExitAsync(cancellationToken);
-
-        var output = (await outputTask + Environment.NewLine + await errorTask).Trim();
-        if (!string.IsNullOrWhiteSpace(output))
-            Console.Out.WriteLine(output);
-
-        return new ProcessResult(process.ExitCode, output);
+            return DependencyDeploymentPlanner.GetDependencyFirstOrder(graph);
+        }
+        catch (PowerPackValidationException exception)
+        {
+            throw new CliException(exception.Message);
+        }
     }
 
     private static FileInfo? ResolveSettingsFile(string? settingsDirectory, DependencyDeploymentNode node)
@@ -357,6 +275,4 @@ internal sealed class InstallPackageCommand : AsyncCommand<InstallPackageCommand
             value = value.Replace(invalidCharacter, '_');
         return value;
     }
-
-    private sealed record ProcessResult(int ExitCode, string Output);
 }

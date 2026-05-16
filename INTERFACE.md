@@ -10,6 +10,7 @@ It owns the semantic contract for:
 - package publish and download API routes
 - dependency resolution responses
 - deployment graph projection
+- stable `PowerPack.Core` library APIs for package and Dataverse solution operations
 - the reusable Terraform module under `infra/`
 - the `powerpack` .NET tool command surface
 
@@ -22,6 +23,8 @@ PowerPack currently owns:
 - resolving package-managed solution dependencies by minimum version
 - producing signed package download URLs
 - projecting resolved packages into a deployment graph for downstream tooling
+- exposing built-in Power Platform solution knowledge to downstream code
+- exposing package publish, resolve, download, Dataverse export, and Dataverse import primitives as library APIs
 - deploying its own registry API and storage through a reusable Terraform module
 
 PowerPack may later own:
@@ -74,6 +77,13 @@ The Terraform module exposes its variable and output surface from `infra/`.
 
 The C# model classes under `source/Core/Models/` are the source of truth for serialized request, response, manifest, and deployment graph shapes.
 
+The `PowerPack.Core` package exposes these stable consumer APIs:
+
+- `PowerPack.Services.BuiltInSolutionRegistry`
+- `PowerPack.Services.PowerPackApiClient`
+- `PowerPack.Services.DataverseSolutionClient`
+- `PowerPack.Services.DependencyDeploymentPlanner`
+
 ## Invariants
 
 - Version comparison uses normalized four-part numeric versions.
@@ -96,7 +106,7 @@ The C# model classes under `source/Core/Models/` are the source of truth for ser
 - `powerpack publish` uploads package zips to the configured PowerPack API.
 - `powerpack build-manifest --solution` exports an unmanaged solution from Dataverse before manifest inspection.
 - `powerpack build-manifest` and `powerpack publish` resolve the Power Platform environment id from a Dataverse environment URL.
-- `powerpack install-package` downloads packages and invokes `pac solution import`.
+- `powerpack install-package` downloads packages and imports them through Dataverse Web API solution actions.
 - The Terraform module provisions Azure infrastructure and applies the Function App package through OneDeploy.
 
 ## Dependency Boundaries
@@ -112,6 +122,7 @@ Trusted upstream contracts:
 Downstream consumers should depend on:
 
 - documented API routes and model shapes
+- the stable `PowerPack.Core` library APIs listed in Public Interfaces
 - CLI command behavior
 - Terraform module variables and outputs
 - deployment graph semantics
@@ -120,6 +131,7 @@ Downstream consumers should not depend on:
 
 - Azure Table Storage entity shapes
 - internal C# service types outside the public model contract
+- PAC CLI as a runtime dependency or durable integration boundary
 - release workflow implementation details
 - organisation-specific pipelines
 
@@ -130,6 +142,7 @@ Downstream consumers should not depend on:
 - Dependency resolution is request-scoped and deterministic.
 - Package publish is an authenticated mutation that writes both manifest state and package blob state.
 - Package download is anonymous at the Function route level and requires a valid signed PowerPack download token.
+- Dataverse solution export/import library operations call Dataverse Web API actions directly.
 - Terraform deploys durable infrastructure and applies the API package through the OneDeploy extension.
 
 ## Anti-Goals
@@ -137,6 +150,7 @@ Downstream consumers should not depend on:
 - PowerPack is not a Dataverse deployment engine.
 - PowerPack is not a connector provisioning system.
 - PowerPack is not a Power Platform source-control format.
+- PowerPack is not a PAC CLI wrapper.
 - PowerPack does not hide failed validation behind fallback behavior.
 - PowerPack does not treat organisation-specific pipeline conventions as generic product contract.
 

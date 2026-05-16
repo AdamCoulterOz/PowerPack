@@ -1,9 +1,5 @@
 using System.ComponentModel;
-using System.Net.Http.Headers;
-using System.Text;
 using System.Text.Json;
-using System.Text.Json.Nodes;
-using Azure.Core;
 using Azure.Identity;
 using PowerPack.Models;
 using PowerPack.Services;
@@ -60,13 +56,11 @@ internal sealed class BuildManifestCommand : AsyncCommand<BuildManifestCommand.S
         {
             var credential = new AzureCliCredential();
             using var httpClient = new HttpClient();
-            var environmentUrl = NormalizeEnvironmentUrl(settings.EnvironmentUrl);
-            var powerPlatformEnvironmentId = await ResolvePowerPlatformEnvironmentIdAsync(
-                httpClient,
-                credential,
+            var dataverseClient = new DataverseSolutionClient(httpClient, credential);
+            var environmentUrl = DataverseSolutionClient.NormalizeEnvironmentUrl(settings.EnvironmentUrl);
+            var powerPlatformEnvironmentId = await dataverseClient.ResolvePowerPlatformEnvironmentIdAsync(
                 environmentUrl,
-                cancellationToken
-            );
+                cancellationToken);
 
             byte[] packageBytes;
             if (!string.IsNullOrWhiteSpace(settings.PackagePath))
@@ -79,13 +73,14 @@ internal sealed class BuildManifestCommand : AsyncCommand<BuildManifestCommand.S
             }
             else
             {
-                packageBytes = await ExportUnmanagedSolutionAsync(
-                    httpClient,
-                    credential,
+                packageBytes = await dataverseClient.ExportSolutionAsync(
                     environmentUrl,
-                    settings.SolutionName!,
-                    cancellationToken
-                );
+                    new DataverseSolutionExportOptions
+                    {
+                        SolutionName = settings.SolutionName!,
+                        Managed = false,
+                    },
+                    cancellationToken);
             }
 
             var connectorMetadataClient = new PowerPlatformConnectorMetadataClient(
@@ -131,110 +126,11 @@ internal sealed class BuildManifestCommand : AsyncCommand<BuildManifestCommand.S
             Console.Error.WriteLine(exception.Message);
             return 1;
         }
-    }
-
-    internal static string NormalizeEnvironmentUrl(string environmentUrl)
-    {
-        var trimmed = environmentUrl.Trim().TrimEnd('/');
-        if (!Uri.TryCreate(trimmed, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps)
-            throw new CliException($"--environment-url must be an absolute HTTPS Dataverse URL: {environmentUrl}");
-        return trimmed;
-    }
-
-    internal static async Task<string> ResolvePowerPlatformEnvironmentIdAsync(
-        HttpClient httpClient,
-        TokenCredential credential,
-        string environmentUrl,
-        CancellationToken cancellationToken)
-    {
-        var response = await SendDataverseRequestAsync(
-            httpClient,
-            credential,
-            environmentUrl,
-            HttpMethod.Get,
-            "/api/data/v9.2/RetrieveCurrentOrganization(AccessType=@p1)?@p1=Microsoft.Dynamics.CRM.EndpointAccessType'Default'",
-            null,
-            cancellationToken
-        );
-
-        var json = JsonNode.Parse(response) as JsonObject
-            ?? throw new CliException("RetrieveCurrentOrganization did not return a JSON object.");
-        var environmentId = json["Detail"]?["EnvironmentId"]?.GetValue<string>();
-        if (string.IsNullOrWhiteSpace(environmentId))
-            throw new CliException("RetrieveCurrentOrganization response did not include Detail.EnvironmentId.");
-        return environmentId.Trim();
-    }
-
-    private static async Task<byte[]> ExportUnmanagedSolutionAsync(
-        HttpClient httpClient,
-        TokenCredential credential,
-        string environmentUrl,
-        string solutionName,
-        CancellationToken cancellationToken)
-    {
-        if (string.IsNullOrWhiteSpace(solutionName))
-            throw new CliException("--solution must be a non-empty solution unique name.");
-
-        var body = new JsonObject
+        catch (PowerPackServiceException exception)
         {
-            ["SolutionName"] = solutionName.Trim(),
-            ["Managed"] = false,
-        };
-        var response = await SendDataverseRequestAsync(
-            httpClient,
-            credential,
-            environmentUrl,
-            HttpMethod.Post,
-            "/api/data/v9.2/ExportSolution",
-            body.ToJsonString(),
-            cancellationToken
-        );
-
-        var json = JsonNode.Parse(response) as JsonObject
-            ?? throw new CliException("ExportSolution did not return a JSON object.");
-        var packageBase64 = json["ExportSolutionFile"]?.GetValue<string>();
-        if (string.IsNullOrWhiteSpace(packageBase64))
-            throw new CliException("ExportSolution response did not include ExportSolutionFile.");
-
-        try
-        {
-            return Convert.FromBase64String(packageBase64);
+            Console.Error.WriteLine(exception.Message);
+            return 1;
         }
-        catch (FormatException exception)
-        {
-            throw new CliException($"ExportSolutionFile was not valid base64: {exception.Message}");
-        }
-    }
-
-    private static async Task<string> SendDataverseRequestAsync(
-        HttpClient httpClient,
-        TokenCredential credential,
-        string environmentUrl,
-        HttpMethod method,
-        string relativePath,
-        string? body,
-        CancellationToken cancellationToken)
-    {
-        var accessToken = await credential.GetTokenAsync(
-            new TokenRequestContext([$"{environmentUrl}/.default"]),
-            cancellationToken
-        );
-
-        using var request = new HttpRequestMessage(method, environmentUrl + relativePath);
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken.Token);
-        request.Headers.Accept.ParseAdd("application/json");
-        request.Headers.Add("OData-Version", "4.0");
-        request.Headers.Add("OData-MaxVersion", "4.0");
-        if (body is not null)
-            request.Content = new StringContent(body, Encoding.UTF8, "application/json");
-
-        using var response = await httpClient.SendAsync(request, cancellationToken);
-        var payload = await response.Content.ReadAsStringAsync(cancellationToken);
-        if (!response.IsSuccessStatusCode)
-            throw new CliException(
-                $"Dataverse {method} {relativePath} failed: HTTP {(int)response.StatusCode}: {payload}"
-            );
-        return payload;
     }
 
     private static void ValidateExpectedVersion(SolutionManifest manifest, string? expectedVersion)

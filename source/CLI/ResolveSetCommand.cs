@@ -1,5 +1,9 @@
 using System.ComponentModel;
 using System.Text.Json;
+using System.Text.Json.Nodes;
+using Azure.Identity;
+using PowerPack.Models;
+using PowerPack.Services;
 using Spectre.Console;
 using Spectre.Console.Cli;
 
@@ -7,8 +11,6 @@ namespace PowerPack.Cli;
 
 internal sealed class ResolveSetCommand : AsyncCommand<ResolveSetCommand.Settings>
 {
-    private readonly PowerPackCliClient _client = new();
-
     public sealed class Settings : CommandSettings
     {
         [CommandOption("--api-base-url <URL>")]
@@ -46,14 +48,34 @@ internal sealed class ResolveSetCommand : AsyncCommand<ResolveSetCommand.Setting
     {
         try
         {
-            var payload = await _client.ResolveSetAsync(
-                settings.ApiBaseUrl,
-                settings.ApplicationIdUri,
-                settings.RequestPath,
-                cancellationToken
-            );
+            var requestFile = new FileInfo(settings.RequestPath);
+            if (!requestFile.Exists)
+                throw new CliException($"Resolve-set request file was not found: {requestFile.FullName}");
 
-            var json = payload.ToJsonString(new JsonSerializerOptions(JsonSerializerDefaults.Web)
+            ResolveSetRequest requestBody;
+            try
+            {
+                requestBody = JsonNode.Parse(await File.ReadAllTextAsync(requestFile.FullName, cancellationToken))
+                    ?.Deserialize<ResolveSetRequest>(new JsonSerializerOptions(JsonSerializerDefaults.Web))
+                    ?? throw new CliException($"Resolve-set request file '{requestFile.FullName}' is empty.");
+            }
+            catch (JsonException exception)
+            {
+                throw new CliException(
+                    $"Resolve-set request file '{requestFile.FullName}' is invalid JSON: {exception.Message}");
+            }
+
+            using var httpClient = new HttpClient();
+            var client = new PowerPackApiClient(
+                httpClient,
+                new PowerPackApiClientOptions
+                {
+                    Credential = new AzureCliCredential(),
+                    ApplicationIdUri = settings.ApplicationIdUri,
+                });
+            var payload = await client.ResolveSetAsync(settings.ApiBaseUrl, requestBody, cancellationToken);
+
+            var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions(JsonSerializerDefaults.Web)
             {
                 WriteIndented = true,
             });
@@ -66,6 +88,11 @@ internal sealed class ResolveSetCommand : AsyncCommand<ResolveSetCommand.Setting
             return 0;
         }
         catch (CliException exception)
+        {
+            Console.Error.WriteLine(exception.Message);
+            return 1;
+        }
+        catch (PowerPackServiceException exception)
         {
             Console.Error.WriteLine(exception.Message);
             return 1;

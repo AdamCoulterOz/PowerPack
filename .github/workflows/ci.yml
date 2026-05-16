@@ -45,6 +45,14 @@ jobs:
             -p:Version=0.0.0-ci.${{ github.run_number }} \
             --output ./artifacts/cli
 
+      - name: Pack Core Library
+        run: |
+          dotnet pack ./source/Core/Core.csproj \
+            --configuration Release \
+            --no-restore \
+            -p:Version=0.0.0-ci.${{ github.run_number }} \
+            --output ./artifacts/core
+
       - name: Publish API
         run: |
           dotnet publish ./source/API/API.csproj \
@@ -72,5 +80,6 @@ jobs:
           name: powerpack-build
           path: |
             ./artifacts/cli/*.nupkg
+            ./artifacts/core/*.nupkg
             ./artifacts/api/released-package.zip
             ./artifacts/module/module-build.zip
